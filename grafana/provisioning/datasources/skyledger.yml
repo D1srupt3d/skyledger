@@ -1,0 +1,19 @@
+# skyledger's TimescaleDB, read-only. The uid is fixed so the dashboards work in
+# any Grafana: bring-your-own users change `url` (and `jsonData.sslmode` if their
+# database isn't on a private network) and keep the rest.
+apiVersion: 1
+datasources:
+  - name: skyledger
+    uid: skyledger
+    type: grafana-postgresql-datasource
+    url: timescaledb:5432
+    user: skyledger_grafana
+    jsonData:
+      database: skyledger
+      sslmode: disable
+      timescaledb: true
+      postgresVersion: 1800
+      maxOpenConns: 5
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD
+    editable: false

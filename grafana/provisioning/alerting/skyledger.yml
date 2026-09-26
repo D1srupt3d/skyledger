@@ -1,0 +1,142 @@
+# Alert rules. No contact point is wired: they show as firing in Grafana, and you
+# route them to email, Discord, ntfy etc. under Alerting > Contact points (README).
+# Each query returns no data (not a false alarm) when a feature isn't in use.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: skyledger
+    folder: skyledger
+    interval: 1m
+    rules:
+      - uid: skyledger-receiver-down
+        title: Receiver stats stale
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "No receiver stats for over 10 minutes"
+          description: "readsb or its web server is down, or skyledger can't reach TAR1090_URL. Check: docker compose logs ingest"
+        labels:
+          app: skyledger
+        data:
+          - refId: A
+            datasourceUid: skyledger
+            relativeTimeRange: {from: 3600, to: 0}
+            model:
+              refId: A
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT extract(epoch FROM now() - max(time))::float8 AS age FROM receiver_stats
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: {type: gt, params: [600]}
+      - uid: skyledger-no-messages
+        title: Receiver decoding nothing
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "readsb is up but decoded no valid messages in 10 minutes"
+          description: "Suspect the SDR dongle (USB reset, unplugged), the antenna or its cable. No data (readsb down) is left to the stats-stale alert."
+        labels:
+          app: skyledger
+        data:
+          - refId: A
+            datasourceUid: skyledger
+            relativeTimeRange: {from: 3600, to: 0}
+            model:
+              refId: A
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT CASE WHEN count(*) = 0 THEN NULL ELSE sum(messages_valid)::float8 END AS valid FROM receiver_stats WHERE time > now() - interval '10 minutes'
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: {type: lt, params: [1]}
+      - uid: skyledger-import-stale
+        title: History import stale
+        condition: C
+        for: 1h
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "No heatmap history imported for over 30 hours"
+          description: "The nightly import should add yesterday's files every day. Check: docker compose logs history"
+        labels:
+          app: skyledger
+        data:
+          - refId: A
+            datasourceUid: skyledger
+            relativeTimeRange: {from: 3600, to: 0}
+            model:
+              refId: A
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT extract(epoch FROM now() - max(imported_at))::float8 / 3600 AS hours FROM history_files
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: {type: gt, params: [30]}
+      - uid: skyledger-gps-degraded
+        title: GPS degraded for many aircraft
+        condition: C
+        for: 30m
+        noDataState: OK
+        execErrState: Error
+        annotations:
+          summary: "Over 10% of aircraft report degraded GPS"
+          description: "Many aircraft at once reporting NIC < 7 or NACp < 8 suggests GPS interference in your area (GPSJam's red level). See the Receiver dashboard."
+        labels:
+          app: skyledger
+        data:
+          - refId: A
+            datasourceUid: skyledger
+            relativeTimeRange: {from: 3600, to: 0}
+            model:
+              refId: A
+              editorMode: code
+              format: table
+              rawQuery: true
+              rawSql: >-
+                SELECT CASE WHEN count(DISTINCT hex) < 5 THEN NULL ELSE greatest(0, count(DISTINCT hex) FILTER (WHERE nic < 7 OR nac_p < 8) - 1)::float8 / count(DISTINCT hex) END AS share FROM positions WHERE time > now() - interval '30 minutes' AND nic IS NOT NULL AND nac_p IS NOT NULL
+          - refId: B
+            datasourceUid: __expr__
+            model: {refId: B, type: reduce, expression: A, reducer: last}
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: {type: gt, params: [0.1]}

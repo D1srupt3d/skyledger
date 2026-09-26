@@ -1,0 +1,946 @@
+{
+  "uid": "skyledger-overview",
+  "title": "skyledger Overview",
+  "description": "What's overhead now, how far the receiver reaches, notable aircraft.",
+  "tags": [
+    "skyledger"
+  ],
+  "schemaVersion": 41,
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "timezone": "",
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "skyledger",
+      "type": "dashboards",
+      "tags": [
+        "skyledger"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Now",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Last write",
+      "description": "Age of the newest stored position. Over a minute means the ingester, the feed or the receiver is down (docker compose logs ingest).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT extract(epoch FROM now() - max(time))::float8 AS age FROM positions WHERE time > now() - interval '1 hour'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 60,
+                "color": "red"
+              }
+            ]
+          },
+          "decimals": 0,
+          "noValue": "Nothing in 1h"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Aircraft now",
+      "description": "Distinct aircraft with a position in the last minute.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(DISTINCT hex) FROM positions WHERE time > now() - interval '1 minute'"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "text"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Aircraft in range",
+      "description": "Distinct aircraft seen in the selected time range.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(DISTINCT hex) FROM positions WHERE $__timeFilter(time)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "text"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Positions in range",
+      "description": "Stored position fixes in the selected time range.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) FROM positions WHERE $__timeFilter(time)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "text"
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Furthest reception",
+      "description": "Longest distance from the receiver in the selected range, nautical miles.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT max(distance_nm) FROM positions WHERE $__timeFilter(time)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: nm",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "text"
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "gridPos": {
+        "x": 19,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Reception range",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 8,
+      "type": "geomap",
+      "title": "Reception range",
+      "description": "Furthest position heard in each degree of bearing. Blue: all time (updated nightly). Green: the selected range (last 90 days at most). Positions only count if the same aircraft's neighbouring position is within 10 minutes at under 800 kt, so bad decodes don't draw spikes.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT deg, lat, lon, distance_nm AS distance, alt_baro AS altitude, hex, time AS \"heard at\" FROM history_outline\nUNION ALL SELECT * FROM (SELECT deg + 360, lat, lon, distance_nm, alt_baro, hex, time FROM history_outline ORDER BY deg LIMIT 1) closing ORDER BY 1"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH p AS (\n  SELECT hex, time, lat, lon, alt_baro, distance_nm, bearing,\n    lag(time) OVER w AS ptime, lag(lat) OVER w AS plat, lag(lon) OVER w AS plon,\n    lead(time) OVER w AS ntime, lead(lat) OVER w AS nlat, lead(lon) OVER w AS nlon\n  FROM positions WHERE $__timeFilter(time) AND distance_nm IS NOT NULL AND bearing IS NOT NULL\n  WINDOW w AS (PARTITION BY hex ORDER BY time)\n), best AS (\n  SELECT DISTINCT ON (deg) deg, lat, lon, distance_nm, alt_baro, hex, time\n  FROM (SELECT floor(bearing)::int % 360 AS deg, * FROM p\n        WHERE (time - ptime <= interval '10 minutes' AND 2 * 3440.065 * asin(sqrt(sin(radians(lat - plat) / 2) ^ 2 + cos(radians(plat)) * cos(radians(lat)) * sin(radians(lon - plon) / 2) ^ 2)) / greatest(extract(epoch FROM time - ptime) / 3600, 1.0 / 3600) < 800)\n           OR (ntime - time <= interval '10 minutes' AND 2 * 3440.065 * asin(sqrt(sin(radians(nlat - lat) / 2) ^ 2 + cos(radians(lat)) * cos(radians(nlat)) * sin(radians(nlon - lon) / 2) ^ 2)) / greatest(extract(epoch FROM ntime - time) / 3600, 1.0 / 3600) < 800)) ok\n  ORDER BY deg, distance_nm DESC\n)\nSELECT deg, lat, lon, distance_nm AS distance, alt_baro AS altitude, hex, time AS \"heard at\" FROM best\nUNION ALL SELECT * FROM (SELECT deg + 360, lat, lon, distance_nm, alt_baro, hex, time FROM best ORDER BY deg LIMIT 1) closing ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "view": {
+          "id": "fit",
+          "allLayers": true,
+          "padding": 5
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true,
+          "showAttribution": true
+        },
+        "basemap": {
+          "type": "default",
+          "name": "Basemap"
+        },
+        "layers": [
+          {
+            "type": "route",
+            "name": "All time",
+            "tooltip": true,
+            "location": {
+              "mode": "coords",
+              "latitude": "lat",
+              "longitude": "lon"
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
+            "config": {
+              "arrow": 0,
+              "style": {
+                "color": {
+                  "fixed": "#5794F2"
+                },
+                "lineWidth": 2,
+                "opacity": 0.9
+              }
+            }
+          },
+          {
+            "type": "route",
+            "name": "Selected range",
+            "tooltip": true,
+            "location": {
+              "mode": "coords",
+              "latitude": "lat",
+              "longitude": "lon"
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "B"
+            },
+            "config": {
+              "arrow": 0,
+              "style": {
+                "color": {
+                  "fixed": "#73BF69"
+                },
+                "lineWidth": 2,
+                "opacity": 0.9
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "All-time points",
+            "tooltip": true,
+            "location": {
+              "mode": "coords",
+              "latitude": "lat",
+              "longitude": "lon"
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
+            "config": {
+              "showLegend": false,
+              "style": {
+                "size": {
+                  "fixed": 3
+                },
+                "color": {
+                  "fixed": "#5794F2"
+                },
+                "opacity": 0.8,
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg"
+                }
+              }
+            }
+          },
+          {
+            "type": "markers",
+            "name": "Selected-range points",
+            "tooltip": true,
+            "location": {
+              "mode": "coords",
+              "latitude": "lat",
+              "longitude": "lon"
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "B"
+            },
+            "config": {
+              "showLegend": false,
+              "style": {
+                "size": {
+                  "fixed": 3
+                },
+                "color": {
+                  "fixed": "#73BF69"
+                },
+                "opacity": 0.8,
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg"
+                }
+              }
+            }
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 14,
+        "h": 14
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Furthest ever",
+      "description": "The ten furthest bearings in the all-time outline, with what was heard there.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT o.time AS \"heard at\", o.distance_nm AS distance, o.deg AS bearing, o.alt_baro AS altitude,\n  d.registration, d.type_code AS type, d.description\nFROM history_outline o LEFT JOIN aircraft_db d USING (hex)\nORDER BY o.distance_nm DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: nm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bearing"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "degree"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "altitude"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: ft"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 6,
+        "w": 10,
+        "h": 14
+      }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Traffic",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Aircraft tracked",
+      "description": "Distinct aircraft per interval.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), count(DISTINCT hex) AS aircraft\nFROM positions WHERE $__timeFilter(time)\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Aircraft by altitude",
+      "description": "Distinct aircraft per interval by barometric altitude band. One aircraft can appear in two bands while climbing.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "1m",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval),\n  count(DISTINCT hex) FILTER (WHERE on_ground) AS \"ground\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro < 10000) AS \"below 10k ft\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro >= 10000 AND alt_baro < 30000) AS \"10k-30k ft\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro >= 30000) AS \"30k ft and up\"\nFROM positions WHERE $__timeFilter(time)\nGROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 20,
+            "pointSize": 4,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 13,
+      "type": "row",
+      "title": "Notable",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Lowest airborne aircraft",
+      "description": "Each aircraft's lowest barometric altitude in the range, lowest first. Distance is from the receiver.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT * FROM (\n  SELECT DISTINCT ON (p.hex) p.time, p.flight, a.registration, a.type_code AS type,\n    a.operator, p.alt_baro AS altitude, p.distance_nm AS distance\n  FROM positions p LEFT JOIN aircraft a USING (hex)\n  WHERE $__timeFilter(p.time) AND NOT p.on_ground AND p.alt_baro IS NOT NULL\n  ORDER BY p.hex, p.alt_baro\n) lowest ORDER BY altitude LIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "altitude"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: ft"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "distance"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: nm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 9
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Emergency squawks",
+      "description": "7500 hijack, 7600 radio failure, 7700 emergency. Empty is normal.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT min(p.time) AS first_seen, max(p.time) AS last_seen, p.squawk, p.flight,\n  a.registration, a.type_code AS type, a.operator\nFROM positions p LEFT JOIN aircraft a USING (hex)\nWHERE $__timeFilter(p.time) AND p.squawk IN ('7500', '7600', '7700')\nGROUP BY p.hex, p.squawk, p.flight, a.registration, a.type_code, a.operator\nORDER BY 1 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 6
+      }
+    },
+    {
+      "id": 16,
+      "type": "table",
+      "title": "Military and interesting aircraft",
+      "description": "Aircraft tar1090's database flags as military or interesting, with their lowest altitude and closest approach in the range.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT min(p.time) AS first_seen, max(p.time) AS last_seen,\n  CASE WHEN a.db_flags & 1 <> 0 THEN 'military' ELSE 'interesting' END AS flag,\n  a.registration, a.type_code AS type, a.description, a.operator,\n  min(p.alt_baro) AS lowest, min(p.distance_nm) AS closest\nFROM positions p JOIN aircraft a USING (hex)\nWHERE $__timeFilter(p.time) AND a.db_flags & 3 <> 0\nGROUP BY p.hex, a.db_flags, a.registration, a.type_code, a.description, a.operator\nORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lowest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: ft"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "closest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: nm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 45,
+        "w": 24,
+        "h": 8
+      }
+    }
+  ]
+}

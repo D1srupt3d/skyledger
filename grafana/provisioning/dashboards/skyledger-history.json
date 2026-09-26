@@ -1,0 +1,926 @@
+{
+  "uid": "skyledger-history",
+  "title": "skyledger History",
+  "description": "Flights, long-term trends and weather aloft, from the history import.",
+  "tags": [
+    "skyledger"
+  ],
+  "schemaVersion": 41,
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "timezone": "",
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "skyledger",
+      "type": "dashboards",
+      "tags": [
+        "skyledger"
+      ],
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Flights (from history, updated nightly)",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Flight log",
+      "description": "Every flight that started in the range, newest first (500 max). Entered/left at: bearing from the receiver where it was first and last heard. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT f.first_seen AS \"first seen\", f.callsign, al.name AS airline, d.registration,\n  d.type_code AS type, d.description,\n  extract(epoch FROM f.last_seen - f.first_seen)::float8 AS duration,\n  f.min_alt AS lowest, f.closest_nm AS closest,\n  round(f.entry_bearing)::int AS \"entered at\", round(f.exit_bearing)::int AS \"left at\"\nFROM flights f\nLEFT JOIN aircraft_db d USING (hex)\nLEFT JOIN airlines al ON al.code = substring(f.callsign FROM '^([A-Z]{3})[0-9]')\nWHERE $__timeFilter(f.first_seen)\nORDER BY f.first_seen DESC LIMIT 500"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "lowest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: ft"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "closest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: nm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "entered at"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "degree"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "left at"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "degree"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 12
+      }
+    },
+    {
+      "timeFrom": "2y",
+      "id": 3,
+      "type": "timeseries",
+      "title": "Flights per day",
+      "description": "Flights starting each local day. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('1 day', first_seen, (SELECT value FROM db_meta WHERE key = 'tz')) AS time, count(*) AS flights\nFROM flights WHERE $__timeFilter(first_seen) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "timeFrom": "2y",
+      "id": 4,
+      "type": "timeseries",
+      "title": "New aircraft per day",
+      "description": "Aircraft seen for the first time ever that day. The first weeks of history count everything as new. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('1 day', first_ever, (SELECT value FROM db_meta WHERE key = 'tz')) AS time, count(*) AS \"new aircraft\"\nFROM (SELECT hex, min(first_seen) AS first_ever FROM flights GROUP BY hex) a\nWHERE $__timeFilter(first_ever) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Flights by weekday and hour",
+      "description": "Flights starting in each local weekday and hour over the range; darker is busier. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT to_char(first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz'), 'ID Dy') AS day,\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 0) AS \"00\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 1) AS \"01\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 2) AS \"02\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 3) AS \"03\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 4) AS \"04\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 5) AS \"05\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 6) AS \"06\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 7) AS \"07\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 8) AS \"08\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 9) AS \"09\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 10) AS \"10\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 11) AS \"11\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 12) AS \"12\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 13) AS \"13\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 14) AS \"14\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 15) AS \"15\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 16) AS \"16\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 17) AS \"17\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 18) AS \"18\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 19) AS \"19\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 20) AS \"20\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 21) AS \"21\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 22) AS \"22\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 23) AS \"23\"\nFROM flights WHERE $__timeFilter(first_seen) GROUP BY 1 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "color-background",
+              "mode": "gradient"
+            }
+          },
+          "color": {
+            "mode": "continuous-BlPu"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "day"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 24,
+        "h": 8
+      }
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Regulars",
+      "description": "Aircraft with the most flights in the range. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT d.registration, d.type_code AS type, d.description, count(*) AS flights,\n  mode() WITHIN GROUP (ORDER BY f.callsign) AS \"usual callsign\", max(f.last_seen) AS \"last seen\"\nFROM flights f LEFT JOIN aircraft_db d USING (hex)\nWHERE $__timeFilter(f.first_seen)\nGROUP BY f.hex, d.registration, d.type_code, d.description ORDER BY 4 DESC LIMIT 25"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Rare visitors",
+      "description": "Flights in the range by aircraft types seen on 3 days or fewer in all history. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH type_days AS (\n  SELECT d.type_code, count(DISTINCT f.first_seen::date) AS days\n  FROM flights f JOIN aircraft_db d USING (hex) WHERE d.type_code IS NOT NULL GROUP BY 1\n)\nSELECT f.first_seen AS \"first seen\", f.callsign, d.registration, d.type_code AS type, d.description,\n  t.days AS \"days ever seen\", f.closest_nm AS closest\nFROM flights f JOIN aircraft_db d USING (hex) JOIN type_days t USING (type_code)\nWHERE $__timeFilter(f.first_seen) AND t.days <= 3\nORDER BY f.first_seen DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "closest"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: nm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 29,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Long-term",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "timeFrom": "2y",
+      "id": 9,
+      "type": "timeseries",
+      "title": "Aircraft per day",
+      "description": "Distinct aircraft each day. From the receiver's own replay history, 1 sample per aircraft per minute, local days.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT day::timestamptz AS time, aircraft FROM daily_stats WHERE $__timeFilter(day) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "timeFrom": "2y",
+      "id": 10,
+      "type": "timeseries",
+      "title": "Furthest reception per day",
+      "description": "Longest range each day; a step change usually means the antenna, cable or gain changed. From the receiver's own replay history, 1 sample per aircraft per minute, local days.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT day::timestamptz AS time, max_range_nm AS \"max range\" FROM daily_stats WHERE $__timeFilter(day) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: nm",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 40,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "timeFrom": "2y",
+      "id": 11,
+      "type": "timeseries",
+      "title": "Busiest hour",
+      "description": "Local hour with the most distinct aircraft each day. From the receiver's own replay history, 1 sample per aircraft per minute, local days.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT day::timestamptz AS time, busiest_hour AS \"busiest hour\" FROM daily_stats\nWHERE $__timeFilter(day) ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "points",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0,
+          "max": 23
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 40,
+        "w": 8,
+        "h": 8
+      }
+    },
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Weather aloft",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Wind speed",
+      "description": "Median wind speed reported by aircraft, per altitude band. Aircraft derive it from airspeed, heading and ground track, so it is only as good as their instruments.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n  percentile_cont(0.5) WITHIN GROUP (ORDER BY wind_speed) AS value\nFROM positions WHERE $__timeFilter(time) AND wind_speed IS NOT NULL AND alt_baro IS NOT NULL\nGROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: kt",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Outside air temperature",
+      "description": "Median static air temperature reported by aircraft, per altitude band.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n  percentile_cont(0.5) WITHIN GROUP (ORDER BY oat) AS value\nFROM positions WHERE $__timeFilter(time) AND oat IS NOT NULL AND alt_baro IS NOT NULL\nGROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 49,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Wind direction",
+      "description": "Direction the wind blows FROM, circular mean per altitude band (0/360 north, 270 west). A steady westerly at 30k ft and up is the jet stream.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "interval": "5m",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time, metric, CASE WHEN d < 0 THEN d + 360 ELSE d END AS value FROM (\n  SELECT $__timeGroupAlias(time, $__interval), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n    degrees(atan2(avg(sin(radians(wind_dir))), avg(cos(radians(wind_dir))))) AS d\n  FROM positions WHERE $__timeFilter(time) AND wind_dir IS NOT NULL AND alt_baro IS NOT NULL\n  GROUP BY 1, 2\n) w ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "degree",
+          "custom": {
+            "drawStyle": "points",
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "pointSize": 4,
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          },
+          "min": 0,
+          "max": 360
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 49,
+        "w": 8,
+        "h": 9
+      }
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Operators and types",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 17,
+      "type": "table",
+      "title": "Top operators",
+      "description": "Distinct aircraft per registered operator (tar1090 database).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT a.operator, count(DISTINCT p.hex) AS aircraft\nFROM positions p JOIN aircraft a USING (hex)\nWHERE $__timeFilter(p.time) AND a.operator IS NOT NULL\nGROUP BY 1 ORDER BY 2 DESC LIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 59,
+        "w": 12,
+        "h": 10
+      }
+    },
+    {
+      "id": 18,
+      "type": "table",
+      "title": "Top aircraft types",
+      "description": "Distinct aircraft per ICAO type code.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "skyledger"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "skyledger"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT a.type_code AS type, max(a.description) AS description, count(DISTINCT p.hex) AS aircraft\nFROM positions p JOIN aircraft a USING (hex)\nWHERE $__timeFilter(p.time) AND a.type_code IS NOT NULL\nGROUP BY 1 ORDER BY 3 DESC LIMIT 15"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 59,
+        "w": 12,
+        "h": 10
+      }
+    }
+  ]
+}
