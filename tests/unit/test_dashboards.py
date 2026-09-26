@@ -65,3 +65,20 @@ def test_all_queries_covers_every_panel():
     panels = [p for d in dashboards().values() for p in d["panels"] if p["type"] != "row"]
     assert len(queries) >= len(panels)
     assert all("history_daily" not in q for q in queries.values())
+
+
+def test_maps_fit_the_reception_outline():
+    # Heatmap and route layers give "fit" no reliable extent, so each map fits to a markers layer.
+    maps = [p for d in dashboards().values() for p in d["panels"] if p["type"] == "geomap"]
+    for m in maps:
+        assert m["options"]["view"]["layer"] in {
+            layer["name"] for layer in m["options"]["layers"] if layer["type"] == "markers"}, m["title"]
+    views = {m["title"]: m["options"]["view"] for m in maps}
+    assert views["Reception range"] == {"id": "fit", "allLayers": False, "layer": "All-time points",
+                                        "padding": 5, "maxZoom": 9}
+    assert views["Where positions were received"] == {"id": "fit", "allLayers": False,
+                                                      "layer": "Range outline", "padding": 5, "maxZoom": 9}
+
+
+def test_dashboards_live_in_the_chart():
+    assert gen.OUT == ROOT / "charts" / "skyledger" / "grafana" / "dashboards"

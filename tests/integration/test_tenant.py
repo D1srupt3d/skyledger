@@ -1,4 +1,5 @@
-"""skyledger as a non-superuser tenant of a shared TimescaleDB (deploy/kubernetes/).
+"""skyledger as a non-superuser tenant of a shared TimescaleDB (the Helm chart with
+timescaledb.enabled=false).
 
 SKYLEDGER_TEST_DSN must be a superuser: this test plays the platform too,
 creating the tenant's owner, database and extension the way a shared server's

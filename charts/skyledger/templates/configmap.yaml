@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "skyledger.fullname" . }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+data:
+  TAR1090_URL: {{ include "skyledger.tar1090Url" . | quote }}
+  TZ: {{ .Values.timezone | quote }}
+  RETENTION_DAYS: {{ .Values.retentionDays | quote }}
+  HISTORY_AT: {{ .Values.history.at | quote }}
+  HISTORY_START: {{ .Values.history.start | quote }}
+  POLL_SECONDS: {{ .Values.pollSeconds | quote }}
+  POSTGRES_HOST: {{ include "skyledger.dbHost" . | quote }}
+  POSTGRES_PORT: {{ include "skyledger.dbPort" . | quote }}
+  POSTGRES_USER: {{ include "skyledger.dbUser" . | quote }}
+  POSTGRES_DB: {{ include "skyledger.dbName" . | quote }}

@@ -1,0 +1,20 @@
+tar1090Url: https://planes.example.lan/
+timezone: Europe/London
+timescaledb:
+  enabled: false
+database:
+  host: timescaledb.timescaledb.svc
+grafana:
+  enabled: false
+existingSecret: skyledger-db
+extraEnv:
+  - name: SSL_CERT_FILE
+    value: /etc/homelab-ca/ca.crt
+extraVolumes:
+  - name: homelab-root-ca
+    configMap:
+      name: homelab-root-ca
+extraVolumeMounts:
+  - name: homelab-root-ca
+    mountPath: /etc/homelab-ca
+    readOnly: true

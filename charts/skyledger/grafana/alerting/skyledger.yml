@@ -16,7 +16,7 @@ groups:
         execErrState: Error
         annotations:
           summary: "No receiver stats for over 10 minutes"
-          description: "readsb or its web server is down, or skyledger can't reach TAR1090_URL. Check: docker compose logs ingest"
+          description: "readsb or its web server is down, or skyledger can't reach TAR1090_URL. Check the ingest logs (docker compose logs ingest, or kubectl logs deploy/skyledger-ingest)"
         labels:
           app: skyledger
         data:
@@ -82,7 +82,7 @@ groups:
         execErrState: Error
         annotations:
           summary: "No heatmap history imported for over 30 hours"
-          description: "The nightly import should add yesterday's files every day. Check: docker compose logs history"
+          description: "The nightly import should add yesterday's files every day. Check the history logs (docker compose logs history, or kubectl logs deploy/skyledger-history)"
         labels:
           app: skyledger
         data:

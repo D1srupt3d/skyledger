@@ -1,0 +1,112 @@
+{{- if .Values.timescaledb.enabled }}
+{{- $name := printf "%s-timescaledb" (include "skyledger.fullname" .) }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: timescaledb
+spec:
+  serviceName: {{ $name }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "skyledger.selector" (dict "root" . "component" "timescaledb") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "skyledger.selector" (dict "root" . "component" "timescaledb") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "skyledger.podSecurity" (dict "uid" 1000) | nindent 8 }}
+        fsGroup: 1000
+        # Always (the default) re-chowns the whole volume on every mount and
+        # leaves the data directory group-writable, which Postgres refuses.
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: timescaledb
+          image: {{ .Values.timescaledb.image }}
+          args:
+            - postgres
+            # Default is on: it phones home to Timescale.
+            - -c
+            - timescaledb.telemetry_level=off
+            # Every chunk is a table; queries across months of chunks exceed the default 64 locks.
+            - -c
+            - max_locks_per_transaction=128
+          env:
+            # Bootstrap superuser, as in Compose: migrate creates the Grafana login.
+            - name: POSTGRES_USER
+              value: skyledger
+            - name: POSTGRES_DB
+              value: skyledger
+            {{- include "skyledger.secretEnv" (dict "root" . "key" "POSTGRES_PASSWORD") | nindent 12 }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # Over TCP: the first boot's temporary server listens on the socket
+          # only, and must not count as ready.
+          startupProbe:
+            exec:
+              command: [pg_isready, -h, 127.0.0.1, -U, skyledger]
+            # The 1 s default is too tight for an exec probe on a loaded node; Compose uses 5 s.
+            timeoutSeconds: 5
+            # WAL replay answers "starting up"; 10 min covers slow storage.
+            periodSeconds: 10
+            failureThreshold: 60
+          livenessProbe:
+            exec:
+              command: [pg_isready, -h, 127.0.0.1, -U, skyledger]
+            timeoutSeconds: 5
+            periodSeconds: 20
+            failureThreshold: 6
+          readinessProbe:
+            exec:
+              command: [pg_isready, -h, 127.0.0.1, -U, skyledger]
+            timeoutSeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          {{- with .Values.resources.timescaledb }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /home/postgres/pgdata
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.timescaledb.storage.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.timescaledb.storage.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: timescaledb
+spec:
+  type: {{ .Values.timescaledb.service.type }}
+  {{- if eq .Values.timescaledb.service.type "LoadBalancer" }}
+  # Keep real client addresses (Cilium and kube-proxy SNAT them otherwise).
+  externalTrafficPolicy: Local
+  {{- end }}
+  selector:
+    {{- include "skyledger.selector" (dict "root" . "component" "timescaledb") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+{{- end }}

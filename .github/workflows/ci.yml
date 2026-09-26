@@ -25,6 +25,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - run: uv sync --frozen
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+      - name: Chart lint and schema check, every mode
+        run: |
+          set -euo pipefail
+          modes=(
+            "--set tar1090Url=http://rx/"
+            "--set tar1090Url=http://rx/ --set timescaledb.enabled=false --set database.host=db"
+            "--set tar1090Url=http://rx/ --set grafana.enabled=false"
+            "--set demo.enabled=true --set grafana.ingress.enabled=true --set grafana.ingress.host=sky.example"
+            "-f tests/unit/values-homelab.yaml"
+          )
+          for m in "${modes[@]}"; do
+            helm lint --strict charts/skyledger $m
+            helm template skyledger charts/skyledger $m > "$RUNNER_TEMP/render.yaml"
+            docker run --rm -v "$RUNNER_TEMP:/w" ghcr.io/yannh/kubeconform:v0.8.0 -strict -summary /w/render.yaml
+          done
       - run: uv run ruff check
       - name: Dashboards match the generator
         run: uv run python tools/gen_dashboards.py --check
@@ -34,6 +52,50 @@ jobs:
         run: uv run pytest -v
         env:
           SKYLEDGER_TEST_DSN: postgresql://skyledger:test@localhost:5432/skyledger
+
+  # Installs the full stack on a throwaway cluster with the demo feed: the
+  # only test that proves pods, probes, the database and Grafana fit together.
+  kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+      - uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+      - name: Build the image from this commit and load it into kind
+        run: |
+          docker build -t ghcr.io/d1srupt3d/skyledger:ci .
+          kind load docker-image ghcr.io/d1srupt3d/skyledger:ci --name chart-testing
+      - name: Install the full stack with the demo feed
+        run: >-
+          helm install skyledger charts/skyledger --namespace skyledger --create-namespace
+          --set image.tag=ci --set demo.enabled=true
+          --set timescaledb.storage.size=1Gi --set grafana.persistence.size=256Mi
+          --wait --timeout 15m
+      - name: Positions arrived, Grafana's datasource is healthy and its dashboards are provisioned
+        run: |
+          set -euo pipefail
+          n=$(kubectl -n skyledger exec statefulset/skyledger-timescaledb -- psql -U skyledger -d skyledger -Atc "SELECT count(*) FROM positions")
+          echo "positions: $n"; test "$n" -gt 0
+          kubectl -n skyledger port-forward svc/skyledger-grafana 3000:3000 >/dev/null 2>&1 &
+          for i in $(seq 30); do curl -fs http://localhost:3000/api/health >/dev/null && break; sleep 2; done
+          pw=$(kubectl -n skyledger get secret skyledger -o jsonpath='{.data.GRAFANA_ADMIN_PASSWORD}' | base64 -d)
+          curl -fsS -u "admin:$pw" http://localhost:3000/api/datasources/uid/skyledger/health | tee health.json
+          grep -q '"status":"OK"' health.json
+          # All three dashboards carry the skyledger tag and a skyledger- uid.
+          curl -fsS -u "admin:$pw" 'http://localhost:3000/api/search?type=dash-db&tag=skyledger' > dashboards.json
+          n=$(grep -o '"uid":"skyledger-' dashboards.json | wc -l || true)
+          echo "dashboards: $n"; test "$n" -eq 3
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl -n skyledger get pods -o wide
+          kubectl -n skyledger get pvc
+          kubectl -n skyledger get events --sort-by=.lastTimestamp
+          kubectl -n skyledger describe pods
+          kubectl -n skyledger logs --all-containers --prefix -l app.kubernetes.io/name=skyledger --tail=100
 
   secrets:
     runs-on: ubuntu-latest
