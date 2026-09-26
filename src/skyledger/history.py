@@ -14,6 +14,7 @@ import psycopg
 
 from skyledger import aircraftdb, heatmap, sql
 from skyledger.feed import Feed, NotFound
+from skyledger.ingest import ALIVE, READY
 
 log = logging.getLogger(__name__)
 
@@ -148,12 +149,15 @@ def run_once(conn, feed, settings, today=None):
     total = (yesterday - first_day).days + 1
     day = first_day
     while day <= yesterday:
+        ALIVE.touch()
         n, f = import_day(conn, feed, day, done, receiver, settings, first_day)
         if n:
             log.info("%s: %d files (day %d of %d)", day, n, (day - first_day).days + 1, total)
         imported, failed = imported + n, failed + f
         day += datetime.timedelta(days=1)
 
+    # The aircraft db load is long and uninterruptible: start it with a fresh liveness window.
+    ALIVE.touch()
     try:
         aircraftdb.load(conn, feed)
     except Exception as e:  # noqa: BLE001 - types and operators are nice to have, never block history
@@ -162,10 +166,22 @@ def run_once(conn, feed, settings, today=None):
         "SELECT ispopulated FROM pg_matviews WHERE matviewname = 'flights'").fetchone()[0]
     if imported or not populated:
         started = time.monotonic()
+        # The rebuild is the longest single step: the liveness window starts fresh here.
+        ALIVE.touch()
         conn.execute(sql.REFRESH_FLIGHTS)
         log.info("flights rebuilt in %.0fs", time.monotonic() - started)
     log.info("history run done: %d files imported, %d to retry", imported, failed)
     return {"imported": imported, "failed": failed}
+
+
+def sleep_until(wake, now=lambda: datetime.datetime.now(datetime.UTC)):
+    """Sleep until `wake`, touching ALIVE every minute so a liveness probe can tell sleeping from hung.
+
+    A test's `now` must advance (from its fake sleep) or this never returns.
+    """
+    while (left := (wake - now()).total_seconds()) > 0:
+        ALIVE.touch()
+        time.sleep(min(left, 60))
 
 
 def run(settings):
@@ -174,9 +190,10 @@ def run(settings):
         try:
             with psycopg.connect(settings.database_url, autocommit=True, connect_timeout=10) as conn:
                 run_once(conn, feed, settings)
+                READY.touch()
             wake = next_run(datetime.datetime.now(datetime.UTC), settings.history_at, settings.tz)
         except Exception as e:  # noqa: BLE001 - a failed run is retried, the service keeps going
             log.exception("history run failed: %r", e)
             wake = datetime.datetime.now(datetime.UTC) + datetime.timedelta(seconds=RETRY_AFTER)
         log.info("next history run at %s", wake.isoformat(timespec="minutes"))
-        time.sleep(max(0.0, (wake - datetime.datetime.now(datetime.UTC)).total_seconds()))
+        sleep_until(wake)

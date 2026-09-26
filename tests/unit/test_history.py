@@ -1,4 +1,5 @@
 import datetime
+import types
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -96,3 +97,26 @@ def test_already_imported_files_are_skipped(settings):
     day = D(2026, 1, 5)
     done = {f"{day:%Y/%m/%d}/heatmap/{h:02d}.bin.ttf" for h in range(48)}
     assert history.import_day(NoDB(), FakeFeed({}), day, done, None, settings, day) == (0, 0)
+
+
+def test_sleep_until_touches_alive_every_minute(monkeypatch):
+    touches = []
+    monkeypatch.setattr(history, "ALIVE", types.SimpleNamespace(touch=lambda: touches.append(1)))
+    clock = [datetime.datetime(2026, 9, 26, 1, 0, tzinfo=datetime.UTC)]
+    naps = []
+
+    def fake_sleep(seconds):
+        naps.append(seconds)
+        clock[0] += datetime.timedelta(seconds=seconds)
+
+    monkeypatch.setattr(history.time, "sleep", fake_sleep)
+    history.sleep_until(clock[0] + datetime.timedelta(seconds=150), now=lambda: clock[0])
+    assert naps == [60, 60, 30]
+    assert len(touches) == 3
+
+
+def test_sleep_until_in_the_past_returns_at_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(history, "ALIVE", tmp_path / "alive")
+    monkeypatch.setattr(history.time, "sleep", lambda s: pytest.fail("slept"))
+    now = datetime.datetime(2026, 9, 26, tzinfo=datetime.UTC)
+    history.sleep_until(now - datetime.timedelta(seconds=5), now=lambda: now)

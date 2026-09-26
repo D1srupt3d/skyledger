@@ -79,6 +79,10 @@ def apply_settings(conn, settings):
 
 def run(settings):
     with psycopg.connect(settings.database_url, autocommit=True, connect_timeout=10) as conn:
+        # psycopg drops server notices without a handler; 0002 warns through one.
+        conn.add_notice_handler(lambda d: log.log(
+            logging.WARNING if d.severity_nonlocalized == "WARNING" else logging.DEBUG,
+            "postgres: %s", d.message_primary))
         apply(conn, settings)
     log.info("schema up to date")
     return 0

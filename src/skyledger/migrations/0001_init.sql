@@ -198,11 +198,11 @@ CREATE UNIQUE INDEX flights_hex_first_seen_idx ON flights (hex, first_seen);
 CREATE INDEX flights_first_seen_idx ON flights (first_seen);
 
 -- Grafana's read-only login; migrate.py enables LOGIN and sets the password
--- from GRAFANA_DB_PASSWORD.
+-- from GRAFANA_DB_PASSWORD. On a shared server the platform creates it first,
+-- so this needs no CREATEROLE there. Table grants are in 0002.
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'skyledger_grafana') THEN
         CREATE ROLE skyledger_grafana NOLOGIN;
     END IF;
 END $$;
-GRANT pg_read_all_data TO skyledger_grafana;

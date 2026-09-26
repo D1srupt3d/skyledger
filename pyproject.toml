@@ -1,6 +1,6 @@
 [project]
 name = "skyledger"
-version = "0.1.0"
+version = "0.2.0"
 description = "Archive a readsb/tar1090 ADS-B receiver in TimescaleDB, including its heatmap replay history, with Grafana dashboards."
 authors = [{ name = "D1srupt3d" }]
 license = "MIT"
