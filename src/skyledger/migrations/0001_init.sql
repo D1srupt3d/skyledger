@@ -85,8 +85,10 @@ CREATE TABLE receiver_stats (
     samples_dropped      bigint,
     samples_lost         bigint
 );
-SELECT create_hypertable('receiver_stats', by_range('time', INTERVAL '7 days'));
-CREATE UNIQUE INDEX receiver_stats_time_idx ON receiver_stats (time);
+-- No default time index: the unique one below covers it, and create_hypertable's default
+-- would be named receiver_stats_time_idx too.
+SELECT create_hypertable('receiver_stats', by_range('time', INTERVAL '7 days'), create_default_indexes => false);
+CREATE UNIQUE INDEX receiver_stats_time_key ON receiver_stats (time);
 ALTER TABLE receiver_stats SET (timescaledb.enable_columnstore = true, timescaledb.orderby = 'time DESC');
 CALL add_columnstore_policy('receiver_stats', after => INTERVAL '7 days');
 SELECT add_retention_policy('receiver_stats', drop_after => INTERVAL '365 days');

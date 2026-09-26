@@ -30,3 +30,14 @@ def test_init_uses_current_columnstore_api():
     # add_compression_policy / timescaledb.compress are deprecated since TimescaleDB 2.18.
     assert "add_compression_policy" not in init and "timescaledb.compress " not in init
     assert init.count("add_columnstore_policy") == 3
+
+
+def test_no_index_collides_with_create_hypertables_default():
+    # create_hypertable() makes "<table>_time_idx" unless told not to; a CREATE INDEX with that
+    # name then fails the whole migration (it did, in the first CI run).
+    import re
+
+    sql = migrate.read("0001_init.sql")
+    for table, args in re.findall(r"create_hypertable\('(\w+)',([^;]*)\);", sql):
+        if "create_default_indexes => false" not in args:
+            assert f"INDEX {table}_time_idx " not in sql, table
