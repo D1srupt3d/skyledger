@@ -92,20 +92,25 @@ skyledger imports readsb's heatmap files (`globe_history/YYYY/MM/DD/heatmap/*.bi
 
 ## Configuration
 
-All settings live in `.env`.
+All settings live in `.env` (Compose) or `deploy/kubernetes/config.yml` (Kubernetes).
 
 | Variable | Default | |
 |---|---|---|
 | `TAR1090_URL` | required | see above |
-| `POSTGRES_PASSWORD`, `GRAFANA_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` | required | Compose refuses to start without them |
+| `POSTGRES_PASSWORD`, `GRAFANA_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` | required | Compose refuses to start without them (`GRAFANA_ADMIN_PASSWORD` is Compose only) |
+| `POSTGRES_HOST` | `timescaledb` | (Kubernetes only) database host |
+| `POSTGRES_PORT` | `5432` | (Kubernetes only) database port |
+| `POSTGRES_USER` | `skyledger` | (Kubernetes only) database user |
+| `POSTGRES_DB` | `skyledger` | (Kubernetes only) database name |
+| `DATABASE_URL` | optional | (Kubernetes only) a full `postgresql://` URL; overrides the `POSTGRES_*` parts |
 | `TZ` | `UTC` | local days, busiest hour, when the nightly import runs |
-| `COMPOSE_PROFILES` | `grafana` | remove for your own Grafana; add `demo` for the demo feed |
+| `COMPOSE_PROFILES` | `grafana` | (Compose only) remove for your own Grafana; add `demo` for the demo feed |
 | `RETENTION_DAYS` | `90` | days of 10 s live positions (history is kept forever) |
 | `HISTORY_AT` | `01:15` | nightly import time, local |
 | `HISTORY_START` | `auto` | `YYYY-MM-DD` to skip older history |
-| `GRAFANA_PORT` | `3000` | |
-| `DB_BIND` | `127.0.0.1` | where the database port is published; `0.0.0.0` for a Grafana elsewhere |
-| `SKYLEDGER_VERSION` | `0.1` | image tag |
+| `GRAFANA_PORT` | `3000` | (Compose only) |
+| `DB_BIND` | `127.0.0.1` | (Compose only) where the database port is published; `0.0.0.0` for a Grafana elsewhere |
+| `SKYLEDGER_VERSION` | `0.2` | (Compose only) image tag |
 
 ## Using your own Grafana
 
@@ -114,6 +119,32 @@ All settings live in `.env`.
 3. Import the three dashboards from `grafana/provisioning/dashboards/` (or point Grafana's provisioning at that folder), and the alert rules from `grafana/provisioning/alerting/` if you want them.
 
 Grafana 12 or newer is recommended (the reception map uses the Route layer, beta since 10.1).
+
+## Kubernetes
+
+`deploy/kubernetes/` runs `ingest` and `history` as two Deployments against a
+TimescaleDB you already run (community edition: skyledger uses compression and
+retention policies, which the Apache edition lacks). There is no bundled
+database or Grafana here.
+
+skyledger does not need a superuser. Before the first start, a superuser on your
+database server runs:
+
+```sql
+CREATE ROLE skyledger LOGIN PASSWORD '...';
+CREATE ROLE skyledger_grafana LOGIN PASSWORD '...';
+CREATE DATABASE skyledger OWNER skyledger;
+REVOKE CONNECT ON DATABASE skyledger FROM PUBLIC;
+GRANT CONNECT ON DATABASE skyledger TO skyledger, skyledger_grafana;
+\c skyledger
+CREATE EXTENSION IF NOT EXISTS timescaledb;
+```
+
+Then edit `deploy/kubernetes/config.yml` and follow the commands at its top.
+`skyledger_grafana` gets read access to skyledger's tables and nothing else;
+point Grafana at it as in "Using your own Grafana" and leave
+`GRAFANA_DB_PASSWORD` unset (the password is yours to manage).
+The manifests pin the patch tag (`0.2.0`); Compose floats on `0.2`, and releases publish both.
 
 ## Alerts
 
@@ -145,7 +176,7 @@ SKYLEDGER_TEST_DSN=postgresql://skyledger:test@localhost:5432/skyledger uv run p
 uv run python tools/gen_dashboards.py # regenerate dashboards after editing the generator
 ```
 
-The integration test needs an empty TimescaleDB (community edition), such as `timescale/timescaledb-ha`. CI runs everything, including a real TimescaleDB.
+The two integration test files need `SKYLEDGER_TEST_DSN` to be a superuser on an empty TimescaleDB (community edition), such as `timescale/timescaledb-ha`: the tenant test creates roles and databases. CI runs everything, including a real TimescaleDB.
 
 ## Credits
 

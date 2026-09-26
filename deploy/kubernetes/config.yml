@@ -1,0 +1,15 @@
+# Settings for both skyledger Deployments. Edit, then:
+#   kubectl create namespace skyledger
+#   kubectl -n skyledger create secret generic skyledger-db --from-literal=POSTGRES_PASSWORD='...'
+#   kubectl -n skyledger apply -f deploy/kubernetes/
+# Every variable in the README's Configuration table can go here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: skyledger
+data:
+  TAR1090_URL: http://tar1090.example.lan/
+  TZ: UTC
+  POSTGRES_HOST: timescaledb
+  POSTGRES_USER: skyledger
+  POSTGRES_DB: skyledger

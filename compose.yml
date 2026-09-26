@@ -2,7 +2,7 @@
 name: skyledger
 
 x-skyledger: &skyledger
-  image: ghcr.io/d1srupt3d/skyledger:${SKYLEDGER_VERSION:-0.1}
+  image: ghcr.io/d1srupt3d/skyledger:${SKYLEDGER_VERSION:-0.2}
   restart: unless-stopped
   environment:
     TAR1090_URL: ${TAR1090_URL:?set TAR1090_URL in .env}
@@ -86,7 +86,7 @@ services:
   # Synthetic receiver for trying skyledger without one:
   #   TAR1090_URL=http://demo-feed:8080/ and COMPOSE_PROFILES=grafana,demo
   demo-feed:
-    image: ghcr.io/d1srupt3d/skyledger:${SKYLEDGER_VERSION:-0.1}
+    image: ghcr.io/d1srupt3d/skyledger:${SKYLEDGER_VERSION:-0.2}
     profiles: [demo]
     restart: unless-stopped
     command: ["demo-feed", "--port", "8080"]
