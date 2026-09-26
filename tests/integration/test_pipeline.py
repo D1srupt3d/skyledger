@@ -9,7 +9,6 @@ import importlib.util
 import os
 import pathlib
 import re
-import threading
 from zoneinfo import ZoneInfo
 
 import psycopg
@@ -25,14 +24,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture(scope="module")
-def feed_url():
-    srv = demo.server(0)
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{srv.server_address[1]}/"
-    srv.shutdown()
-
-
-@pytest.fixture(scope="module")
 def settings(feed_url):
     return Settings(tar1090_url=feed_url, database_url=DSN, tz=ZoneInfo("Europe/London"), fetch_pause=0,
                     retention_days=30, grafana_db_password="grafana-test")
@@ -44,13 +35,24 @@ def conn(settings):
         yield c
 
 
+@pytest.fixture(scope="module")
+def grafana_conn():
+    with psycopg.connect(re.sub(r"//[^@]*@", "//skyledger_grafana:grafana-test@", DSN), autocommit=True) as g:
+        yield g
+
+
 def count(conn, sql):
     return conn.execute(sql).fetchone()[0]
 
 
 def test_1_migrate_is_idempotent(conn, settings):
+    # What the old 0001 left behind; 0002 must take it away again.
+    conn.execute("DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'skyledger_grafana') THEN "
+                 "CREATE ROLE skyledger_grafana; END IF; END $$")
+    conn.execute("GRANT pg_read_all_data TO skyledger_grafana")
     migrate.apply(conn, settings)
     migrate.apply(conn, settings)
+    assert not count(conn, "SELECT pg_has_role('skyledger_grafana', 'pg_read_all_data', 'MEMBER')")
     assert count(conn, "SELECT count(*) FROM schema_migrations") == len(migrate.discover())
     assert count(conn, "SELECT value FROM db_meta WHERE key = 'tz'") == "Europe/London"
     jobs = conn.execute("SELECT hypertable_name, proc_name FROM timescaledb_information.jobs "
@@ -84,12 +86,10 @@ def test_3_history(conn, settings):
     assert history.run_once(conn, feed, settings) == {"imported": 0, "failed": 0}
 
 
-def test_4_grafana_role_is_read_only(settings):
-    dsn = re.sub(r"//[^@]*@", "//skyledger_grafana:grafana-test@", DSN)
-    with psycopg.connect(dsn, autocommit=True) as g:
-        assert g.execute("SELECT count(*) FROM flights").fetchone()[0] > 0
-        with pytest.raises(psycopg.errors.InsufficientPrivilege):
-            g.execute("DELETE FROM positions")
+def test_4_grafana_role_is_read_only(grafana_conn):
+    assert count(grafana_conn, "SELECT count(*) FROM flights") > 0
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        grafana_conn.execute("DELETE FROM positions")
 
 
 def load_generator():
@@ -99,7 +99,7 @@ def load_generator():
     return mod
 
 
-def test_5_every_dashboard_query_runs(conn):
+def test_5_every_dashboard_query_runs(grafana_conn):
     now = datetime.datetime.now(datetime.UTC)
     frm = (now - datetime.timedelta(days=30)).isoformat()
     queries = load_generator().all_queries()
@@ -110,14 +110,14 @@ def test_5_every_dashboard_query_runs(conn):
         e = re.sub(r"\$__timeGroupAlias\(([\w.]+), *\$__interval\)", group, e)
         e = e.replace("$__timeFrom()", f"'{frm}'").replace("$__timeTo()", f"'{now.isoformat()}'")
         assert "$__" not in e, (name, e)
-        conn.execute(e).fetchall()
+        grafana_conn.execute(e).fetchall()
 
 
-def test_6_every_alert_query_runs(conn):
+def test_6_every_alert_query_runs(grafana_conn):
     import yaml
 
     alerting = yaml.safe_load((ROOT / "grafana/provisioning/alerting/skyledger.yml").read_text())
     rules = alerting["groups"][0]["rules"]
     assert len(rules) == 4
     for rule in rules:
-        conn.execute(rule["data"][0]["model"]["rawSql"]).fetchall()
+        grafana_conn.execute(rule["data"][0]["model"]["rawSql"]).fetchall()
