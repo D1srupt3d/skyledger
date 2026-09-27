@@ -1,0 +1,3 @@
+# Count YAML (Helm chart, compose, workflows) in the GitHub language bar; Linguist skips "data" languages by default.
+*.yaml linguist-detectable
+*.yml linguist-detectable
