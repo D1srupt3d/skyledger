@@ -183,7 +183,7 @@ wheels = [
 
 [[package]]
 name = "skyledger"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "." }
 dependencies = [
     { name = "psycopg", extra = ["binary"] },

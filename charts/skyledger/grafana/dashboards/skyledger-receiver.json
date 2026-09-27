@@ -1,6 +1,6 @@
 {
   "uid": "skyledger-receiver",
-  "title": "skyledger Receiver",
+  "title": "Skyledger Receiver",
   "description": "How well the receiver is working: signal, decode rate, GPS integrity, coverage.",
   "tags": [
     "skyledger"
@@ -22,7 +22,7 @@
   },
   "links": [
     {
-      "title": "skyledger",
+      "title": "Skyledger",
       "type": "dashboards",
       "tags": [
         "skyledger"

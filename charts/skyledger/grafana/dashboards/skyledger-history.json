@@ -1,6 +1,6 @@
 {
   "uid": "skyledger-history",
-  "title": "skyledger History",
+  "title": "Skyledger History",
   "description": "Flights, long-term trends and weather aloft, from the history import.",
   "tags": [
     "skyledger"
@@ -22,7 +22,7 @@
   },
   "links": [
     {
-      "title": "skyledger",
+      "title": "Skyledger",
       "type": "dashboards",
       "tags": [
         "skyledger"

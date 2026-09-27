@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Grafana: dashboards are titled "Skyledger Overview", "Skyledger Receiver" and "Skyledger History", in folder "Skyledger", and the alert rules are in folder "Skyledger" too. If an empty "skyledger" folder is left behind after the upgrade, delete it. Dashboard links (uids) don't change.
+
 ## 0.3.1
 
 - History dashboard: "Flights by weekday and hour" is now "Flights per hour, last 7 days": one row per date instead of every weekday folded together, and it always shows the last 7 days (it was blank most of the time on the dashboard's default 24 h range). Narrow columns, so all 24 hours fit without scrolling sideways.

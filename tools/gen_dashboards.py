@@ -1004,7 +1004,7 @@ def build():
     )
     return {
         "uid": "skyledger-all",
-        "title": "skyledger",
+        "title": "Skyledger",
         "description": "",
         "tags": ["skyledger"],
         "schemaVersion": 41,
@@ -1025,7 +1025,7 @@ def build():
 # provisioned duplicate that can't be deleted from the UI.
 LAYOUT = {
     "skyledger-overview": (
-        "skyledger Overview",
+        "Skyledger Overview",
         "What's overhead now, how far the receiver reaches, notable aircraft.",
         [
             (
@@ -1047,7 +1047,7 @@ LAYOUT = {
         ],
     ),
     "skyledger-receiver": (
-        "skyledger Receiver",
+        "Skyledger Receiver",
         "How well the receiver is working: signal, decode rate, GPS integrity, coverage.",
         [
             (
@@ -1068,7 +1068,7 @@ LAYOUT = {
         ],
     ),
     "skyledger-history": (
-        "skyledger History",
+        "Skyledger History",
         "Flights, long-term trends and weather aloft, from the history import.",
         [
             (
@@ -1127,7 +1127,7 @@ def split(full):
             "tags": ["skyledger"],
             "links": [
                 {
-                    "title": "skyledger",
+                    "title": "Skyledger",
                     "type": "dashboards",
                     "tags": ["skyledger"],
                     "asDropdown": False,
