@@ -5,7 +5,7 @@ apiVersion: 1
 groups:
   - orgId: 1
     name: skyledger
-    folder: skyledger
+    folder: Skyledger
     interval: 1m
     rules:
       - uid: skyledger-receiver-down

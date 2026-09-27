@@ -1,6 +1,6 @@
 {
   "uid": "skyledger-overview",
-  "title": "skyledger Overview",
+  "title": "Skyledger Overview",
   "description": "What's overhead now, how far the receiver reaches, notable aircraft.",
   "tags": [
     "skyledger"
@@ -22,7 +22,7 @@
   },
   "links": [
     {
-      "title": "skyledger",
+      "title": "Skyledger",
       "type": "dashboards",
       "tags": [
         "skyledger"
