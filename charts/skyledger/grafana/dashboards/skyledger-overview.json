@@ -402,8 +402,7 @@
       "options": {
         "view": {
           "id": "fit",
-          "allLayers": false,
-          "layer": "All-time points",
+          "allLayers": true,
           "padding": 5,
           "maxZoom": 9
         },

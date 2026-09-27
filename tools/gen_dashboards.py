@@ -329,13 +329,12 @@ SQL = {
         f"SELECT time_bucket('1 day', first_seen, {LOCAL}) AS time, count(*) AS flights\n"
         "FROM flights WHERE $__timeFilter(first_seen) GROUP BY 1 ORDER BY 1"
     ),
-    "week_grid": (
-        f"SELECT to_char(first_seen AT TIME ZONE {LOCAL}, 'ID Dy') AS day,\n"
-        + ",\n".join(
-            f'  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE {LOCAL}) = {h}) AS "{h:02d}"'
-            for h in range(24)
-        )
-        + "\nFROM flights WHERE $__timeFilter(first_seen) GROUP BY 1 ORDER BY 1"
+    # One row per local date, one column per local hour.
+    "day_hour_grid": (
+        f"WITH f AS (SELECT first_seen AT TIME ZONE {LOCAL} AS t FROM flights WHERE $__timeFilter(first_seen))\n"
+        "SELECT to_char(t::date, 'Dy DD Mon') AS day,\n"
+        + ",\n".join(f'  count(*) FILTER (WHERE extract(hour FROM t) = {h}) AS "{h:02d}"' for h in range(24))
+        + "\nFROM f GROUP BY t::date ORDER BY t::date"
     ),
     "regulars": (
         "SELECT d.registration, d.type_code AS type, d.description, count(*) AS flights,\n"
@@ -584,10 +583,12 @@ def build():
             "targets": [target(SQL["coverage"]), dict(target(SQL["outline_all"]), refId="B")],
             "fieldConfig": {"defaults": {}, "overrides": []},
             "options": {
-                # "fit" can't take an extent from a heatmap layer (the map falls back to the whole
-                # world), so the outline points ride along as a small markers layer to fit to;
+                # A heatmap layer gives "fit" no extent, so the outline points ride along as a small
+                # markers layer. All layers, not one named layer: Grafana 13 never fits to a single
+                # layer, and even all layers only fits once re-selected after load (the map opens
+                # on the whole world); pin coordinates in your own copy if that bothers you.
                 # maxZoom stops a sparse outline zooming in to street level.
-                "view": {"id": "fit", "allLayers": False, "layer": "Range outline", "padding": 5, "maxZoom": 9},
+                "view": {"id": "fit", "allLayers": True, "padding": 5, "maxZoom": 9},
                 "controls": {"showZoom": True, "mouseWheelZoom": True, "showAttribution": True},
                 "basemap": {"type": "default", "name": "Basemap"},
                 "layers": [
@@ -676,10 +677,11 @@ def build():
             "targets": [ra, rb],
             "fieldConfig": {"defaults": {}, "overrides": []},
             "options": {
-                # "fit" can't take an extent from the route layers reliably, so fit to the all-time
-                # markers layer that rides along for that purpose; maxZoom stops a sparse outline
-                # zooming in to street level.
-                "view": {"id": "fit", "allLayers": False, "layer": "All-time points", "padding": 5, "maxZoom": 9},
+                # All layers, not one named layer: Grafana 13 never fits to a single layer, and even
+                # all layers only fits once re-selected after load (the map opens on the whole
+                # world); pin coordinates in your own copy if that bothers you. The markers layers
+                # give the extent; maxZoom stops a sparse outline zooming in to street level.
+                "view": {"id": "fit", "allLayers": True, "padding": 5, "maxZoom": 9},
                 "controls": {"showZoom": True, "mouseWheelZoom": True, "showAttribution": True},
                 "basemap": {"type": "default", "name": "Basemap"},
                 "layers": [
@@ -955,24 +957,34 @@ def build():
     )
     y += 8
     grid = table(
-        "Flights by weekday and hour",
-        "Flights starting in each local weekday and hour over the range; darker is busier." + fnote,
-        SQL["week_grid"],
-        {"x": 0, "y": y, "w": 24, "h": 8},
+        "Flights per hour, last 7 days",
+        "Flights starting in each local hour, one row per day, oldest on top; darker is busier. Move the "
+        "dashboard time range back to page through earlier weeks." + fnote,
+        SQL["day_hour_grid"],
+        {"x": 0, "y": y, "w": 24, "h": 10},
     )
-    grid["fieldConfig"]["defaults"]["custom"]["cellOptions"] = {
-        "type": "color-background",
-        "mode": "gradient",
+    grid["timeFrom"] = "7d"
+    # Grafana's table defaults to about 150 px per column, so only a few hours fit and the rest
+    # scroll sideways; narrow fixed columns fit all 24. 7 days usually spans 8 dates: h 10 fits
+    # them without an inner scroll bar.
+    grid["fieldConfig"]["defaults"]["custom"] = {
+        "align": "center",
+        "width": 44,
+        "minWidth": 36,
+        "cellOptions": {"type": "color-background", "mode": "gradient"},
     }
     grid["fieldConfig"]["defaults"]["color"] = {"mode": "continuous-BlPu"}
     grid["fieldConfig"]["overrides"] = [
         {
             "matcher": {"id": "byName", "options": "day"},
-            "properties": [{"id": "custom.cellOptions", "value": {"type": "auto"}}],
+            "properties": [
+                {"id": "custom.cellOptions", "value": {"type": "auto"}},
+                {"id": "custom.width", "value": 96},
+            ],
         }
     ]
     panels.append(grid)
-    y += 8
+    y += 10
     panels.append(
         table(
             "Regulars",
@@ -1065,7 +1077,7 @@ LAYOUT = {
                     "Flight log",
                     "Flights per day",
                     "New aircraft per day",
-                    "Flights by weekday and hour",
+                    "Flights per hour, last 7 days",
                     "Regulars",
                     "Rare visitors",
                 ],
