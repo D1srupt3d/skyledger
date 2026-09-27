@@ -1,0 +1,83 @@
+# skyledger chart settings. Defaults give the full stack: TimescaleDB, ingest,
+# history and Grafana with dashboards and alerts. Switch pieces off to bring
+# your own. README "Kubernetes" has examples.
+
+# Base URL of your tar1090, e.g. http://ultrafeeder/. Required unless demo.enabled.
+tar1090Url: ""
+# Local days, busiest hour and the nightly import time use this zone.
+timezone: UTC
+# Days of 10 s live positions to keep (history is kept forever).
+retentionDays: 90
+history:
+  at: "01:15"       # quoted: unquoted 01:15 is a YAML 1.1 base-60 number
+  start: auto       # or YYYY-MM-DD to skip older history
+pollSeconds: 10
+
+image:
+  repository: ghcr.io/d1srupt3d/skyledger
+  tag: ""           # "" = the chart's appVersion
+
+timescaledb:
+  enabled: true
+  image: timescale/timescaledb-ha:pg18.6-ts2.30.1
+  storage:
+    size: 20Gi
+    storageClass: ""  # "" = the cluster default
+  service:
+    type: ClusterIP
+
+# Your own TimescaleDB (community edition), used when timescaledb.enabled is
+# false. skyledger connects as a plain database owner; README "Kubernetes" has
+# the one-time SQL.
+database:
+  host: ""
+  port: 5432
+  name: skyledger
+  user: skyledger
+
+grafana:
+  enabled: true
+  image: grafana/grafana:13.2.2
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: false
+    className: ""
+    host: ""
+    tlsSecret: ""
+  persistence:
+    enabled: true     # false = emptyDir; Grafana forgets users and alert state on restart
+    size: 1Gi
+    storageClass: ""
+  # "" = disable for the bundled database (in-cluster), require for your own.
+  datasourceSslmode: ""
+
+# A synthetic receiver for trying skyledger without one. tar1090Url then
+# defaults to it.
+demo:
+  enabled: false
+
+# Name of a Secret you manage (ExternalSecrets, SOPS, ...). Needed keys:
+# POSTGRES_PASSWORD always; GRAFANA_DB_PASSWORD with the bundled database or
+# Grafana; GRAFANA_ADMIN_PASSWORD with the bundled Grafana.
+# ArgoCD, Flux and `helm template` render offline, so the generated Secret
+# would get new passwords on every render: set this there.
+existingSecret: ""
+
+# Per component; empty means none set. Limits are yours to choose.
+resources:
+  ingest: {}
+  history: {}
+  timescaledb: {}
+  grafana: {}
+  demo: {}
+
+# Added to ingest, history and their migrate init containers, e.g. a CA
+# bundle for an HTTPS tar1090:
+#   extraEnv: [{name: SSL_CERT_FILE, value: /etc/ca/ca.crt}]
+#   extraVolumes: [{name: ca, configMap: {name: my-ca}}]
+#   extraVolumeMounts: [{name: ca, mountPath: /etc/ca, readOnly: true}]
+extraEnv: []
+extraVolumes: []
+extraVolumeMounts: []

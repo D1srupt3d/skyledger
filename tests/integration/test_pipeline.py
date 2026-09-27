@@ -1,7 +1,7 @@
 """End to end against a real TimescaleDB (community edition) and the demo feed.
 
 Needs SKYLEDGER_TEST_DSN pointing at an EMPTY database, e.g. the CI service container:
-postgresql://postgres:test@localhost:5432/skyledger
+postgresql://skyledger:test@localhost:5432/skyledger
 """
 
 import datetime
@@ -116,7 +116,7 @@ def test_5_every_dashboard_query_runs(grafana_conn):
 def test_6_every_alert_query_runs(grafana_conn):
     import yaml
 
-    alerting = yaml.safe_load((ROOT / "grafana/provisioning/alerting/skyledger.yml").read_text())
+    alerting = yaml.safe_load((ROOT / "charts/skyledger/grafana/alerting/skyledger.yml").read_text())
     rules = alerting["groups"][0]["rules"]
     assert len(rules) == 4
     for rule in rules:

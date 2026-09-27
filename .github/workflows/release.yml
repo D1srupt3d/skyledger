@@ -18,10 +18,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Tag matches the package version
+      - name: Tag matches the package and chart versions
         run: |
           version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
           test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but pyproject says $version"; exit 1; }
+          for field in version appVersion; do
+            chart=$(grep -m1 "^$field:" charts/skyledger/Chart.yaml | awk '{print $2}' | tr -d '"')
+            test "$chart" = "$version" || { echo "Chart.yaml $field is $chart, pyproject says $version"; exit 1; }
+          done
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -48,6 +52,22 @@ jobs:
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+      - id: chart
+        name: Package and push the Helm chart
+        run: |
+          set -euo pipefail
+          helm package charts/skyledger --destination dist
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm push "dist/skyledger-${GITHUB_REF_NAME#v}.tgz" oci://ghcr.io/d1srupt3d/charts 2>&1 | tee push.log
+          echo "digest=$(grep -o 'sha256:[0-9a-f]\{64\}' push.log | head -1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/d1srupt3d/charts/skyledger
+          subject-digest: ${{ steps.chart.outputs.digest }}
           push-to-registry: true
       - name: GitHub release from the CHANGELOG section
         env:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Kubernetes: a Helm chart (`oci://ghcr.io/d1srupt3d/charts/skyledger`) that installs the whole stack, TimescaleDB and Grafana included; switch either off to bring your own.
+- Breaking: `deploy/kubernetes/` is gone. Use the chart, or `helm template` for plain YAML.
+- The Grafana provisioning files moved to `charts/skyledger/grafana/` (Compose mounts them from there; `git pull` is enough).
+- The reception maps frame your reception area instead of every point ever heard.
+- TimescaleDB runs with `max_locks_per_transaction=128`, for queries across many months of chunks.
+- The "Receiver stats stale" (receiver down) and "History import stale" alert descriptions name both `docker compose logs` and `kubectl logs`.
+
 ## 0.2.0
 
 - Kubernetes: example manifests in `deploy/kubernetes/`, for a TimescaleDB you already run.

@@ -1,0 +1,2 @@
+# Compose's static datasource; the chart renders its own from values.
+grafana/datasources/

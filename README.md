@@ -27,7 +27,7 @@ Four containers: `timescaledb` (TimescaleDB community edition, compressed), `ing
 ## Requirements
 
 - A readsb (wiedehopf's fork) + tar1090 receiver whose tar1090 page you can reach over HTTP.
-- Docker with Compose v2.
+- Docker with Compose v2, or a Kubernetes cluster and Helm (see [Kubernetes](#kubernetes)).
 - For history: readsb's heatmap turned on (it is by default in ultrafeeder and adsb.im; see [Heatmap history](#heatmap-history)).
 - An amd64 machine or a Raspberry Pi 4/5 (arm64). Put the database on an **SSD, not an SD card**: a database writes constantly and wears SD cards out.
 - Disk: live data is roughly 130 MB a day before compression; history compresses to a few hundred MB a year. Plan for a few GB.
@@ -92,17 +92,17 @@ skyledger imports readsb's heatmap files (`globe_history/YYYY/MM/DD/heatmap/*.bi
 
 ## Configuration
 
-All settings live in `.env` (Compose) or `deploy/kubernetes/config.yml` (Kubernetes).
+All settings live in `.env` (Compose). The Helm chart sets them from its values instead (see [Kubernetes](#kubernetes)).
 
 | Variable | Default | |
 |---|---|---|
 | `TAR1090_URL` | required | see above |
-| `POSTGRES_PASSWORD`, `GRAFANA_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` | required | Compose refuses to start without them (`GRAFANA_ADMIN_PASSWORD` is Compose only) |
-| `POSTGRES_HOST` | `timescaledb` | (Kubernetes only) database host |
-| `POSTGRES_PORT` | `5432` | (Kubernetes only) database port |
-| `POSTGRES_USER` | `skyledger` | (Kubernetes only) database user |
-| `POSTGRES_DB` | `skyledger` | (Kubernetes only) database name |
-| `DATABASE_URL` | optional | (Kubernetes only) a full `postgresql://` URL; overrides the `POSTGRES_*` parts |
+| `POSTGRES_PASSWORD`, `GRAFANA_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` | required | required for Compose; the Helm chart generates them or reads `existingSecret` |
+| `POSTGRES_HOST` | `timescaledb` | (set by the Helm chart from values) database host |
+| `POSTGRES_PORT` | `5432` | (set by the Helm chart from values) database port |
+| `POSTGRES_USER` | `skyledger` | (set by the Helm chart from values) database user |
+| `POSTGRES_DB` | `skyledger` | (set by the Helm chart from values) database name |
+| `DATABASE_URL` | optional | a full `postgresql://` URL; overrides the `POSTGRES_*` parts (with the Helm chart, set it through `extraEnv`) |
 | `TZ` | `UTC` | local days, busiest hour, when the nightly import runs |
 | `COMPOSE_PROFILES` | `grafana` | (Compose only) remove for your own Grafana; add `demo` for the demo feed |
 | `RETENTION_DAYS` | `90` | days of 10 s live positions (history is kept forever) |
@@ -110,25 +110,45 @@ All settings live in `.env` (Compose) or `deploy/kubernetes/config.yml` (Kuberne
 | `HISTORY_START` | `auto` | `YYYY-MM-DD` to skip older history |
 | `GRAFANA_PORT` | `3000` | (Compose only) |
 | `DB_BIND` | `127.0.0.1` | (Compose only) where the database port is published; `0.0.0.0` for a Grafana elsewhere |
-| `SKYLEDGER_VERSION` | `0.2` | (Compose only) image tag |
+| `DB_PORT` | `5432` | (Compose only) host port the database is published on |
+| `SKYLEDGER_VERSION` | `0.3` | (Compose only) image tag |
 
 ## Using your own Grafana
 
 1. Remove `COMPOSE_PROFILES=grafana` from `.env` (and set `DB_BIND=0.0.0.0` if Grafana runs on another machine).
-2. Add the datasource from `grafana/provisioning/datasources/skyledger.yml`, pointing `url` at this machine. Keep the uid `skyledger`: the dashboards refer to it. Grafana logs in as `skyledger_grafana`, which can only read.
-3. Import the three dashboards from `grafana/provisioning/dashboards/` (or point Grafana's provisioning at that folder), and the alert rules from `grafana/provisioning/alerting/` if you want them.
+2. Add the datasource from `charts/skyledger/grafana/datasources/skyledger.yml`, pointing `url` at this machine. Keep the uid `skyledger`: the dashboards refer to it. Grafana logs in as `skyledger_grafana`, which can only read.
+3. Import the three dashboards from `charts/skyledger/grafana/dashboards/` (or point Grafana's provisioning at that folder), and the alert rules from `charts/skyledger/grafana/alerting/` if you want them.
 
 Grafana 12 or newer is recommended (the reception map uses the Route layer, beta since 10.1).
 
 ## Kubernetes
 
-`deploy/kubernetes/` runs `ingest` and `history` as two Deployments against a
-TimescaleDB you already run (community edition: skyledger uses compression and
-retention policies, which the Apache edition lacks). There is no bundled
-database or Grafana here.
+The Helm chart installs the same stack as Compose: TimescaleDB, `ingest`,
+`history`, and Grafana with the dashboards and alerts.
 
-skyledger does not need a superuser. Before the first start, a superuser on your
-database server runs:
+```bash
+helm install skyledger oci://ghcr.io/d1srupt3d/charts/skyledger \
+  --namespace skyledger --create-namespace \
+  --set tar1090Url=http://ultrafeeder/ --set timezone=Europe/London
+```
+
+The notes it prints show how to open Grafana. Every setting is in the chart's
+`values.yaml` (`helm show values oci://ghcr.io/d1srupt3d/charts/skyledger`).
+Try it without a receiver: `--set demo.enabled=true` instead of `tar1090Url`.
+
+**ArgoCD, Flux or `helm template`: set `existingSecret`.** The chart generates
+its passwords once and reads them back on upgrades, which only works when Helm
+talks to the cluster. Offline renders would generate new passwords every time.
+Give it a Secret you manage with `POSTGRES_PASSWORD` (always),
+`GRAFANA_DB_PASSWORD` (with the bundled database or Grafana) and
+`GRAFANA_ADMIN_PASSWORD` (with the bundled Grafana).
+
+**Your own Grafana:** `--set grafana.enabled=false`, then follow "Using your
+own Grafana".
+
+**Your own database:** `--set timescaledb.enabled=false --set
+database.host=...`. skyledger then runs as a plain database owner. Before the
+first start, a superuser on your database server runs:
 
 ```sql
 CREATE ROLE skyledger LOGIN PASSWORD '...';
@@ -140,11 +160,30 @@ GRANT CONNECT ON DATABASE skyledger TO skyledger, skyledger_grafana;
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 ```
 
-Then edit `deploy/kubernetes/config.yml` and follow the commands at its top.
-`skyledger_grafana` gets read access to skyledger's tables and nothing else;
-point Grafana at it as in "Using your own Grafana" and leave
-`GRAFANA_DB_PASSWORD` unset (the password is yours to manage).
-The manifests pin the patch tag (`0.2.0`); Compose floats on `0.2`, and releases publish both.
+`skyledger_grafana` gets read access to skyledger's tables and nothing else.
+The chart's generated passwords can't match roles you created, so hand it
+yours in a Secret (add `GRAFANA_DB_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` if you
+keep the bundled Grafana):
+
+```bash
+kubectl create namespace skyledger
+kubectl -n skyledger create secret generic skyledger-db \
+  --from-literal=POSTGRES_PASSWORD='...'
+# then add to the helm install: --set existingSecret=skyledger-db
+```
+
+**Plain YAML:** `helm template skyledger oci://ghcr.io/d1srupt3d/charts/skyledger --set ...`.
+
+**Uninstall** keeps the database volume and the generated Secret, so a
+reinstall finds its data. The notes printed at install list the commands that
+delete them for real (`helm get notes skyledger -n skyledger` shows them
+again); for the release `skyledger` in namespace `skyledger`:
+
+```bash
+kubectl -n skyledger delete pvc data-skyledger-timescaledb-0
+# only if the chart generated the Secret (no existingSecret):
+kubectl -n skyledger delete secret skyledger
+```
 
 ## Alerts
 
@@ -157,6 +196,8 @@ git pull
 docker compose pull
 docker compose up -d
 ```
+
+On Kubernetes: `helm upgrade skyledger oci://ghcr.io/d1srupt3d/charts/skyledger --namespace skyledger --reset-then-reuse-values` keeps your settings and picks up the new chart's defaults.
 
 Database changes are applied automatically by the `migrate` container. Downgrades aren't supported. The dashboards are replaced on upgrade: to customise one, use Grafana's "Save as" and edit your copy.
 
@@ -176,7 +217,7 @@ SKYLEDGER_TEST_DSN=postgresql://skyledger:test@localhost:5432/skyledger uv run p
 uv run python tools/gen_dashboards.py # regenerate dashboards after editing the generator
 ```
 
-The two integration test files need `SKYLEDGER_TEST_DSN` to be a superuser on an empty TimescaleDB (community edition), such as `timescale/timescaledb-ha`: the tenant test creates roles and databases. CI runs everything, including a real TimescaleDB.
+The two integration test files need `SKYLEDGER_TEST_DSN` to be a superuser on an empty TimescaleDB (community edition), such as `timescale/timescaledb-ha`, whose bootstrap superuser is the `POSTGRES_USER` you start it with (`skyledger` in the DSN above, password `test`): the tenant test creates roles and databases. Chart tests need `helm` 4 on PATH (`uv run pytest tests/unit/test_chart.py`); CI also installs the chart on kind. CI runs everything, including a real TimescaleDB.
 
 ## Credits
 

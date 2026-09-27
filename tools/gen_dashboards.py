@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generate skyledger's Grafana dashboards (classic JSON schema) into grafana/provisioning/dashboards/.
+"""Generate skyledger's Grafana dashboards (classic JSON schema) into charts/skyledger/grafana/dashboards/
+(Compose mounts it, the Helm chart packages it).
 
 Usage: uv run tools/gen_dashboards.py [--check | --sql]
   (no args)  write the dashboard files
@@ -584,8 +585,9 @@ def build():
             "fieldConfig": {"defaults": {}, "overrides": []},
             "options": {
                 # "fit" can't take an extent from a heatmap layer (the map falls back to the whole
-                # world), so the outline points ride along as a small markers layer to fit to.
-                "view": {"id": "fit", "allLayers": True, "padding": 5},
+                # world), so the outline points ride along as a small markers layer to fit to;
+                # maxZoom stops a sparse outline zooming in to street level.
+                "view": {"id": "fit", "allLayers": False, "layer": "Range outline", "padding": 5, "maxZoom": 9},
                 "controls": {"showZoom": True, "mouseWheelZoom": True, "showAttribution": True},
                 "basemap": {"type": "default", "name": "Basemap"},
                 "layers": [
@@ -674,7 +676,10 @@ def build():
             "targets": [ra, rb],
             "fieldConfig": {"defaults": {}, "overrides": []},
             "options": {
-                "view": {"id": "fit", "allLayers": True, "padding": 5},
+                # "fit" can't take an extent from the route layers reliably, so fit to the all-time
+                # markers layer that rides along for that purpose; maxZoom stops a sparse outline
+                # zooming in to street level.
+                "view": {"id": "fit", "allLayers": False, "layer": "All-time points", "padding": 5, "maxZoom": 9},
                 "controls": {"showZoom": True, "mouseWheelZoom": True, "showAttribution": True},
                 "basemap": {"type": "default", "name": "Basemap"},
                 "layers": [
@@ -1124,7 +1129,7 @@ def split(full):
     return out
 
 
-OUT = pathlib.Path(__file__).resolve().parents[1] / "grafana" / "provisioning" / "dashboards"
+OUT = pathlib.Path(__file__).resolve().parents[1] / "charts" / "skyledger" / "grafana" / "dashboards"
 
 
 def render():

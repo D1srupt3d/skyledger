@@ -1,0 +1,57 @@
+{{- if .Values.demo.enabled }}
+{{- $name := printf "%s-demo-feed" (include "skyledger.fullname" .) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: demo-feed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "skyledger.selector" (dict "root" . "component" "demo-feed") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "skyledger.selector" (dict "root" . "component" "demo-feed") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "skyledger.podSecurity" (dict "uid" 10001) | nindent 8 }}
+      containers:
+        - name: demo-feed
+          image: {{ include "skyledger.image" . }}
+          args: [demo-feed, --port, "8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+          livenessProbe:
+            httpGet: {path: /data/receiver.json, port: http}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /data/receiver.json, port: http}
+            periodSeconds: 10
+          securityContext:
+            {{- include "skyledger.containerSecurity" . | nindent 12 }}
+          {{- with .Values.resources.demo }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: demo-feed
+spec:
+  selector:
+    {{- include "skyledger.selector" (dict "root" . "component" "demo-feed") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+{{- end }}

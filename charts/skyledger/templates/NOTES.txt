@@ -1,0 +1,26 @@
+skyledger {{ .Chart.AppVersion }} is starting in namespace {{ .Release.Namespace }}.
+
+The first start imports your receiver's whole heatmap history (about 10 s per
+day of history); the history pod shows Ready once that run finishes.
+{{- if .Values.grafana.enabled }}
+
+Open Grafana:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "skyledger.fullname" . }}-grafana 3000:{{ .Values.grafana.service.port }}
+  then http://localhost:3000 as admin, password:
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "skyledger.secretName" . }} -o jsonpath='{.data.GRAFANA_ADMIN_PASSWORD}' | base64 -d
+{{- end }}
+{{- if not .Values.existingSecret }}
+
+Passwords were generated into Secret {{ include "skyledger.fullname" . }} and are kept across
+upgrades. ArgoCD, Flux and `helm template` render offline and would generate new
+ones every time: set existingSecret there.
+{{- end }}
+{{- if .Values.timescaledb.enabled }}
+
+The database volume{{ if not .Values.existingSecret }} and the Secret{{ end }} survive{{ if .Values.existingSecret }}s{{ end }} `helm uninstall` on purpose. To delete
+the data for real:
+  kubectl -n {{ .Release.Namespace }} delete pvc data-{{ include "skyledger.fullname" . }}-timescaledb-0
+{{- if not .Values.existingSecret }}
+  kubectl -n {{ .Release.Namespace }} delete secret {{ include "skyledger.fullname" . }}
+{{- end }}
+{{- end }}

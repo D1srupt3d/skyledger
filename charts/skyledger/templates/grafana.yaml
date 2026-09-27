@@ -1,0 +1,212 @@
+{{- define "skyledger.grafanaDatasource" -}}
+{{- $sslmode := .Values.grafana.datasourceSslmode | default (ternary "disable" "require" .Values.timescaledb.enabled) -}}
+# Read-only login; the dashboards refer to the uid.
+apiVersion: 1
+datasources:
+  - name: skyledger
+    uid: skyledger
+    type: grafana-postgresql-datasource
+    url: {{ include "skyledger.dbHost" . }}:{{ include "skyledger.dbPort" . }}
+    user: skyledger_grafana
+    jsonData:
+      database: {{ include "skyledger.dbName" . }}
+      sslmode: {{ $sslmode }}
+      timescaledb: true
+      postgresVersion: 1800
+      maxOpenConns: 5
+    secureJsonData:
+      password: $GRAFANA_DB_PASSWORD
+    editable: false
+{{- end -}}
+{{- if .Values.grafana.enabled }}
+{{- $name := printf "%s-grafana" (include "skyledger.fullname" .) }}
+{{- $datasource := include "skyledger.grafanaDatasource" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-datasources
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+data:
+  skyledger.yml: |
+    {{- $datasource | nindent 4 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-dashboards
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+data:
+  {{- (.Files.Glob "grafana/dashboards/*").AsConfig | nindent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-alerting
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+data:
+  {{- (.Files.Glob "grafana/alerting/*").AsConfig | nindent 2 }}
+---
+{{- if .Values.grafana.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.grafana.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.grafana.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+spec:
+  replicas: 1
+  # The volume is ReadWriteOnce: the old pod must let go first.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "skyledger.selector" (dict "root" . "component" "grafana") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "skyledger.selector" (dict "root" . "component" "grafana") | nindent 8 }}
+      annotations:
+        # Datasources and alerting are read only at startup. Dashboards reload
+        # every 60 s on their own; hashing them too costs only an extra rollout.
+        checksum/provisioning: {{ printf "%s%s%s" $datasource (.Files.Glob "grafana/dashboards/*").AsConfig (.Files.Glob "grafana/alerting/*").AsConfig | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "skyledger.podSecurity" (dict "uid" 472) | nindent 8 }}
+        fsGroup: 472
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: grafana
+          image: {{ .Values.grafana.image }}
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skyledger.secretName" . }}
+                  key: GRAFANA_ADMIN_PASSWORD
+            {{- include "skyledger.secretEnv" (dict "root" . "key" "GRAFANA_DB_PASSWORD") | nindent 12 }}
+            - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
+              value: /etc/grafana/provisioning/dashboards/skyledger-overview.json
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+            - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 3000
+          startupProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /api/health, port: http}
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          {{- with .Values.resources.grafana }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: storage
+              mountPath: /var/lib/grafana
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            - name: dashboards
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: alerting
+              mountPath: /etc/grafana/provisioning/alerting
+              readOnly: true
+      volumes:
+        - name: storage
+          {{- if .Values.grafana.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ $name }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: datasources
+          configMap:
+            name: {{ $name }}-datasources
+        - name: dashboards
+          configMap:
+            name: {{ $name }}-dashboards
+        - name: alerting
+          configMap:
+            name: {{ $name }}-alerting
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana
+spec:
+  type: {{ .Values.grafana.service.type }}
+  selector:
+    {{- include "skyledger.selector" (dict "root" . "component" "grafana") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.grafana.service.port }}
+      targetPort: http
+{{- if .Values.grafana.ingress.enabled }}
+{{- $host := required "grafana.ingress.host is required with grafana.ingress.enabled" .Values.grafana.ingress.host }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+spec:
+  {{- with .Values.grafana.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.grafana.ingress.tlsSecret }}
+  tls:
+    - hosts: [{{ $host | quote }}]
+      secretName: {{ . }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $name }}
+                port:
+                  name: http
+{{- end }}
+{{- end }}
