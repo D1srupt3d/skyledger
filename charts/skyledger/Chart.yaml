@@ -3,8 +3,8 @@ name: skyledger
 description: ADS-B history for your tar1090/readsb receiver, in TimescaleDB, with Grafana dashboards.
 type: application
 # Both follow the skyledger release (pyproject.toml); the release workflow checks it.
-version: 0.3.0
-appVersion: "0.3.0"
+version: 0.3.1
+appVersion: "0.3.1"
 home: https://github.com/D1srupt3d/skyledger
 sources:
   - https://github.com/D1srupt3d/skyledger

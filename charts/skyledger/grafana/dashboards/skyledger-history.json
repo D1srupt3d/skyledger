@@ -278,8 +278,8 @@
     {
       "id": 5,
       "type": "table",
-      "title": "Flights by weekday and hour",
-      "description": "Flights starting in each local weekday and hour over the range; darker is busier. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
+      "title": "Flights per hour, last 7 days",
+      "description": "Flights starting in each local hour, one row per day, oldest on top; darker is busier. Move the dashboard time range back to page through earlier weeks. Flights split where an aircraft went unheard for over 30 minutes; rebuilt nightly, so today shows tomorrow.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "skyledger"
@@ -294,13 +294,15 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT to_char(first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz'), 'ID Dy') AS day,\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 0) AS \"00\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 1) AS \"01\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 2) AS \"02\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 3) AS \"03\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 4) AS \"04\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 5) AS \"05\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 6) AS \"06\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 7) AS \"07\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 8) AS \"08\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 9) AS \"09\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 10) AS \"10\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 11) AS \"11\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 12) AS \"12\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 13) AS \"13\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 14) AS \"14\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 15) AS \"15\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 16) AS \"16\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 17) AS \"17\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 18) AS \"18\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 19) AS \"19\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 20) AS \"20\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 21) AS \"21\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 22) AS \"22\",\n  count(*) FILTER (WHERE extract(hour FROM first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz')) = 23) AS \"23\"\nFROM flights WHERE $__timeFilter(first_seen) GROUP BY 1 ORDER BY 1"
+          "rawSql": "WITH f AS (SELECT first_seen AT TIME ZONE (SELECT value FROM db_meta WHERE key = 'tz') AS t FROM flights WHERE $__timeFilter(first_seen))\nSELECT to_char(t::date, 'Dy DD Mon') AS day,\n  count(*) FILTER (WHERE extract(hour FROM t) = 0) AS \"00\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 1) AS \"01\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 2) AS \"02\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 3) AS \"03\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 4) AS \"04\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 5) AS \"05\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 6) AS \"06\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 7) AS \"07\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 8) AS \"08\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 9) AS \"09\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 10) AS \"10\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 11) AS \"11\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 12) AS \"12\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 13) AS \"13\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 14) AS \"14\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 15) AS \"15\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 16) AS \"16\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 17) AS \"17\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 18) AS \"18\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 19) AS \"19\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 20) AS \"20\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 21) AS \"21\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 22) AS \"22\",\n  count(*) FILTER (WHERE extract(hour FROM t) = 23) AS \"23\"\nFROM f GROUP BY t::date ORDER BY t::date"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "align": "auto",
+            "align": "center",
+            "width": 44,
+            "minWidth": 36,
             "cellOptions": {
               "type": "color-background",
               "mode": "gradient"
@@ -322,6 +324,10 @@
                 "value": {
                   "type": "auto"
                 }
+              },
+              {
+                "id": "custom.width",
+                "value": 96
               }
             ]
           }
@@ -335,8 +341,9 @@
         "x": 0,
         "y": 21,
         "w": 24,
-        "h": 8
-      }
+        "h": 10
+      },
+      "timeFrom": "7d"
     },
     {
       "id": 6,
@@ -374,7 +381,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 31,
         "w": 12,
         "h": 10
       }
@@ -432,7 +439,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 29,
+        "y": 31,
         "w": 12,
         "h": 10
       }
@@ -445,7 +452,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 39,
+        "y": 41,
         "w": 24,
         "h": 1
       }
@@ -506,7 +513,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 40,
+        "y": 42,
         "w": 8,
         "h": 8
       }
@@ -567,7 +574,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 40,
+        "y": 42,
         "w": 8,
         "h": 8
       }
@@ -629,7 +636,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 40,
+        "y": 42,
         "w": 8,
         "h": 8
       }
@@ -642,7 +649,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 48,
+        "y": 50,
         "w": 24,
         "h": 1
       }
@@ -702,7 +709,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 49,
+        "y": 51,
         "w": 8,
         "h": 9
       }
@@ -761,7 +768,7 @@
       },
       "gridPos": {
         "x": 8,
-        "y": 49,
+        "y": 51,
         "w": 8,
         "h": 9
       }
@@ -822,7 +829,7 @@
       },
       "gridPos": {
         "x": 16,
-        "y": 49,
+        "y": 51,
         "w": 8,
         "h": 9
       }
@@ -835,7 +842,7 @@
       "panels": [],
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 60,
         "w": 24,
         "h": 1
       }
@@ -876,7 +883,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 59,
+        "y": 61,
         "w": 12,
         "h": 10
       }
@@ -917,7 +924,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 59,
+        "y": 61,
         "w": 12,
         "h": 10
       }

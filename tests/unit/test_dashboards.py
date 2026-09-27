@@ -67,17 +67,25 @@ def test_all_queries_covers_every_panel():
     assert all("history_daily" not in q for q in queries.values())
 
 
-def test_maps_fit_the_reception_outline():
-    # Heatmap and route layers give "fit" no reliable extent, so each map fits to a markers layer.
-    maps = [p for d in dashboards().values() for p in d["panels"] if p["type"] == "geomap"]
-    for m in maps:
-        assert m["options"]["view"]["layer"] in {
-            layer["name"] for layer in m["options"]["layers"] if layer["type"] == "markers"}, m["title"]
-    views = {m["title"]: m["options"]["view"] for m in maps}
-    assert views["Reception range"] == {"id": "fit", "allLayers": False, "layer": "All-time points",
-                                        "padding": 5, "maxZoom": 9}
-    assert views["Where positions were received"] == {"id": "fit", "allLayers": False,
-                                                      "layer": "Range outline", "padding": 5, "maxZoom": 9}
+def test_maps_fit_all_layers():
+    # Grafana 13 never fits a map to one named layer, so both maps fit all layers; the outline
+    # rides along as a markers layer because heatmap and route layers give "fit" no extent.
+    maps = {p["title"]: p for d in dashboards().values() for p in d["panels"] if p["type"] == "geomap"}
+    fit_all = {"id": "fit", "allLayers": True, "padding": 5, "maxZoom": 9}
+    for m in maps.values():
+        assert m["options"]["view"] == fit_all, m["title"]
+        assert any(layer["type"] == "markers" for layer in m["options"]["layers"]), m["title"]
+    assert set(maps) == {"Reception range", "Where positions were received"}
+
+
+def test_day_hour_grid_shows_one_week_of_dates():
+    grid = next(p for p in dashboards()["skyledger-history.json"]["panels"]
+                if p["title"] == "Flights per hour, last 7 days")
+    assert grid["timeFrom"] == "7d"
+    sql = grid["targets"][0]["rawSql"]
+    assert "'Dy DD Mon'" in sql and "GROUP BY t::date ORDER BY t::date" in sql
+    assert [f'"{h:02d}"' in sql for h in range(24)] == [True] * 24
+    assert grid["fieldConfig"]["defaults"]["custom"]["width"] == 44
 
 
 def test_dashboards_live_in_the_chart():

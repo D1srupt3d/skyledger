@@ -720,8 +720,7 @@
       "options": {
         "view": {
           "id": "fit",
-          "allLayers": false,
-          "layer": "Range outline",
+          "allLayers": true,
           "padding": 5,
           "maxZoom": 9
         },

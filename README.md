@@ -207,6 +207,7 @@ Database changes are applied automatically by the `migrate` container. Downgrade
 - **The dashboards are empty**: `docker compose logs ingest`. A "poll failed" line with a connection error means `TAR1090_URL` isn't reachable from the container.
 - **No range, bearing or outline**: set your receiver location in readsb.
 - **Compose says a variable is required**: fill it in `.env`.
+- **The maps open on the whole world**: Grafana 13 doesn't apply "fit to data" when a dashboard loads. Edit the panel and re-select *Fit to data* in Map view to see your area, or pin the view to your coordinates in your own copy of the dashboard.
 
 ## Development
 
