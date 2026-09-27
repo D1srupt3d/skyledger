@@ -1,0 +1,114 @@
+/* skyledger site. Dark "instrument panel" by default, cool paper in light mode. */
+:root {
+  --bg: #0e1a2b;
+  --panel: #16263b;
+  --line: #2a3d57;
+  --ink: #dce6f0;
+  --muted: #93a6bd;
+  --accent: #f2a93b;
+  --strip-buff: #efd9a7;
+  --strip-blue: #bfd6ea;
+  --strip-ink: #1b2430;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --line: #c9d3de;
+    --ink: #13233a;
+    --muted: #4d6078;
+    --accent: #9a5a00;
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 1rem/1.6 "B612", system-ui, sans-serif;
+}
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+img { max-width: 100%; height: auto; display: block; }
+
+.wrap { max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
+header.top { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 0; }
+header.top .name { font-weight: 700; font-size: 1.125rem; color: var(--ink); text-decoration: none; }
+
+section { padding: 4rem 0; border-top: 1px solid var(--line); }
+h2 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 1.5rem; }
+h3 { font-size: 1.0625rem; margin: 0 0 .25rem; }
+p { margin: 0 0 1rem; max-width: 38rem; }
+.lede { color: var(--muted); }
+
+/* Hero: headline beside a board of flight strips */
+.hero { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; padding: 3rem 0 5rem; border: 0; }
+.hero h1 { font-size: clamp(2.25rem, 5vw, 3.5rem); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 1.25rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 2rem; }
+.button {
+  display: inline-block; padding: .7rem 1.2rem; border-radius: 4px;
+  border: 1px solid var(--accent); color: var(--accent); text-decoration: none; font-weight: 700;
+}
+.button.primary { background: var(--accent); color: var(--bg); }
+
+.board { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .75rem; }
+.board figcaption { color: var(--muted); font-size: .8125rem; padding: .5rem .25rem 0; }
+.strip {
+  display: grid; grid-template-columns: 5.5rem 1fr 1fr 4.5rem; align-items: stretch;
+  font-family: "B612 Mono", ui-monospace, monospace; font-size: .8125rem; line-height: 1.35;
+  background: var(--strip-buff); color: var(--strip-ink);
+  border-radius: 2px; margin-bottom: .375rem;
+}
+.strip:nth-child(even) { background: var(--strip-blue); }
+.strip > span { padding: .45rem .6rem; border-left: 1px solid rgba(27, 36, 48, .25); }
+.strip > span:first-child { border: 0; font-weight: 700; font-size: .9375rem; }
+.strip small { display: block; opacity: .7; }
+
+/* Features: a plain two-column list, no cards */
+.features { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem 3rem; margin: 0; }
+.features dd { margin: 0; color: var(--muted); max-width: 32rem; }
+
+/* Screenshots: one large, two beside each other */
+.shots { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.shots figure { margin: 0; }
+.shots figure:first-child { grid-column: 1 / -1; }
+.shots a { display: block; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.shots figcaption { color: var(--muted); font-size: .875rem; margin-top: .5rem; }
+
+/* How it works */
+.flow { width: 100%; height: auto; max-width: 60rem; }
+.flow text { fill: var(--ink); font-family: "B612", sans-serif; font-size: 15px; }
+.flow .note { fill: var(--muted); font-size: 12px; }
+.flow rect { fill: var(--panel); stroke: var(--line); }
+.flow .ours { stroke: var(--accent); }
+.flow path { stroke: var(--muted); fill: none; }
+.flow .head { fill: var(--muted); }
+
+/* Quick start */
+.steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; }
+.code { position: relative; }
+pre {
+  margin: .5rem 0 0; padding: 1rem; overflow-x: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+  font: .875rem/1.5 "B612 Mono", ui-monospace, monospace;
+}
+.copy {
+  position: absolute; top: .5rem; right: .5rem; padding: .25rem .6rem;
+  font: inherit; font-size: .8125rem; cursor: pointer;
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 3px;
+}
+code { font-family: "B612 Mono", ui-monospace, monospace; font-size: .9em; }
+
+footer { border-top: 1px solid var(--line); padding: 2rem 0 3rem; color: var(--muted); font-size: .875rem; }
+
+@media (max-width: 800px) {
+  .hero, .features, .shots { grid-template-columns: 1fr; }
+  .hero { gap: 2rem; padding-bottom: 3rem; }
+  section { padding: 3rem 0; }
+  .strip { grid-template-columns: 4.75rem 1fr 4rem; }
+  .strip > span:nth-child(3) { display: none; }
+}
