@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.3
+
+- Demo feed: aircraft now leave range between passes, so its week of history has many separate flights instead of one 7-day flight per aircraft. The History dashboard's flight log, flights per hour, regulars and rare visitors fill in (the military RCH99 is a C17 that visits every 2.5 days or so), and at least two aircraft are always overhead.
+
 ## 0.3.2
 
 - Grafana: dashboards are titled "Skyledger Overview", "Skyledger Receiver" and "Skyledger History", in folder "Skyledger", and the alert rules are in folder "Skyledger" too. If an empty "skyledger" folder is left behind after the upgrade, delete it. Dashboard links (uids) don't change.

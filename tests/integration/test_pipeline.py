@@ -64,10 +64,11 @@ def test_1_migrate_is_idempotent(conn, settings):
 
 def test_2_ingest(conn, settings):
     feed = Feed(settings.tar1090_url)
-    assert ingest.poll_once(conn, feed, settings, with_stats=True) == len(demo.PLANES)
-    assert count(conn, "SELECT count(*) FROM positions") == len(demo.PLANES)
+    n = ingest.poll_once(conn, feed, settings, with_stats=True)
+    assert n >= 2  # the demo never has an empty sky
+    assert count(conn, "SELECT count(*) FROM positions") == n
     assert count(conn, "SELECT count(*) FROM receiver_stats") == 1
-    assert count(conn, "SELECT count(*) FROM aircraft WHERE db_flags & 1 <> 0") == 1
+    assert count(conn, "SELECT count(*) FROM aircraft") == n
 
 
 def test_3_history(conn, settings):
@@ -76,7 +77,12 @@ def test_3_history(conn, settings):
     days = demo.DEMO_DAYS
     assert result == {"imported": 48 * days, "failed": 0}
     assert count(conn, "SELECT count(*) FROM history_files") == 48 * days
-    assert count(conn, "SELECT count(*) FROM history_positions") == 48 * days * 30 * len(demo.PLANES)
+    # One row per aircraft per minute in range, over the whole days imported.
+    today = datetime.datetime.now(datetime.UTC).date()
+    first = datetime.datetime.combine(today, datetime.time(), datetime.UTC).timestamp() - days * 86400
+    expected = sum(len(demo.visible(t)) for t in range(int(first), int(first) + days * 86400, 60))
+    assert count(conn, "SELECT count(*) FROM history_positions") == expected
+    assert count(conn, "SELECT count(DISTINCT hex) FROM history_positions") == len(demo.PLANES)
     assert count(conn, "SELECT count(*) FROM daily_stats") >= days
     assert count(conn, "SELECT count(*) FROM history_outline") > 20
     assert count(conn, "SELECT count(*) FROM flights") > 0

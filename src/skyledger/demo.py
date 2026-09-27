@@ -1,7 +1,8 @@
 """A fake tar1090 serving synthetic, deterministic data: for tests, screenshots and trying skyledger.
 
-Fictional aircraft fly repeating straight tracks across a made-up receiver in the middle
-of the North Atlantic. Everything is computed from the clock, so any two requests for the
+Fictional aircraft fly straight tracks across a made-up receiver in the middle of the
+North Atlantic, then stay out of range for a while before the next pass, so history splits
+into separate flights. Everything is computed from the clock, so any two requests for the
 same moment agree, and the heatmap history covers the last DEMO_DAYS days.
 """
 
@@ -24,22 +25,34 @@ HALF_HOUR = 1800
 
 
 class Plane:
-    """Flies from `bearing` at `radius` nm, straight through near the receiver, and repeats."""
+    """Flies from `bearing` at `radius` nm, straight through near the receiver, is gone for
+    `gap_min` minutes, and repeats."""
 
     def __init__(
-        self, index, callsign, bearing, radius, alt, speed, offset_min, mil=False, squawk=2000, miss_nm=0.0
+        self, index, callsign, bearing, radius, alt, speed, offset_min, gap_min,
+        mil=False, squawk=2000, miss_nm=0.0,
     ):
         self.hex = 0xDE0000 + index
         self.callsign, self.alt, self.speed, self.mil, self.squawk = callsign, alt, speed, mil, squawk
+        self.type_code = "C17" if mil else "B38M" if alt > 20000 else "C172"
+        self.description = {"C17": "DEMO MILITARY TRANSPORT", "B38M": "DEMO JETLINER"}.get(
+            self.type_code, "DEMO LIGHT AIRCRAFT"
+        )
         self.start = _destination(*RECEIVER, bearing, radius)
         # Aim `miss_nm` to the side of the receiver, so closest approaches differ.
         aim = _destination(*RECEIVER, (bearing + 90) % 360, miss_nm)
         self.end = (2 * aim[0] - self.start[0], 2 * aim[1] - self.start[1])
-        self.period = 2 * radius / speed * 3600
+        # Whole minutes, so a plane is in or out of range for a whole minute at a time.
+        self.period = round(2 * radius / speed * 60) * 60
+        self.cycle = self.period + gap_min * 60
         self.offset = offset_min * 60
 
     def at(self, t):
-        f = ((t - self.offset) % self.period) / self.period
+        """(lat, lon) at time `t`, or None while out of range."""
+        phase = (t - self.offset) % self.cycle
+        if phase >= self.period:
+            return None
+        f = phase / self.period
         return (
             self.start[0] + (self.end[0] - self.start[0]) * f,
             self.start[1] + (self.end[1] - self.start[1]) * f,
@@ -55,30 +68,37 @@ def _destination(lat, lon, bearing, nm):
 
 
 PLANES = [
-    Plane(i, cs, brg, rad, alt, spd, off, mil=mil, squawk=sq, miss_nm=miss)
-    for i, (cs, brg, rad, alt, spd, off, mil, sq, miss) in enumerate(
+    Plane(i, cs, brg, rad, alt, spd, off, gap, mil=mil, squawk=sq, miss_nm=miss)
+    for i, (cs, brg, rad, alt, spd, off, gap, mil, sq, miss) in enumerate(
         [
-            ("DMO101", 20, 240, 37000, 480, 0, False, 2101, 30),
-            ("DMO202", 70, 220, 35000, 460, 9, False, 2202, 5),
-            ("DMO303", 110, 200, 39000, 500, 17, False, 2303, 60),
-            ("DMO404", 160, 250, 33000, 450, 26, False, 2404, 15),
-            ("DMO505", 200, 230, 36000, 470, 35, False, 2505, 45),
-            ("DMO606", 250, 260, 38000, 490, 44, False, 2606, 8),
-            ("DMO707", 290, 210, 34000, 455, 53, False, 2707, 70),
-            ("DMO808", 330, 245, 40000, 505, 61, False, 2808, 20),
-            ("DEMOX1", 45, 120, 3000, 160, 4, False, 7000, 1),  # low and slow: "lowest aircraft"
-            ("RCH99", 135, 180, 28000, 420, 21, True, 4521, 25),  # military flag
-            ("DMO911", 300, 200, 31000, 440, 38, False, 7700, 35),  # squawking 7700
+            # Airliners: regulars, back every 40 minutes to 3 hours. 101/505 and 202/707 are
+            # pairs on the same cycle, each arriving as the other leaves (a pass must outlast its
+            # partner's gap): never an empty sky.
+            ("DMO101", 20, 240, 37000, 480, 0, 40, False, 2101, 30),  # 60 min pass, 100 min cycle
+            ("DMO202", 70, 220, 35000, 460, 9, 53, False, 2202, 5),  # 57 min pass, 110 min cycle
+            ("DMO303", 110, 200, 39000, 500, 17, 90, False, 2303, 60),
+            ("DMO404", 160, 250, 33000, 450, 26, 120, False, 2404, 15),
+            ("DMO505", 200, 230, 36000, 470, 60, 41, False, 2505, 45),  # 59 min pass, 100 min cycle
+            ("DMO606", 250, 260, 38000, 490, 44, 180, False, 2606, 8),
+            ("DMO707", 290, 210, 34000, 455, 66, 55, False, 2707, 70),  # 55 min pass, 110 min cycle
+            ("DMO808", 330, 245, 40000, 505, 61, 150, False, 2808, 20),
+            ("DEMOX1", 45, 120, 3000, 160, 4, 270, False, 7000, 1),  # low and slow: "lowest aircraft"
+            ("RCH99", 135, 180, 28000, 420, 21, 3550, True, 4521, 25),  # military, every ~2.5 days: rare
+            ("DMO911", 300, 200, 31000, 440, 38, 240, False, 7700, 35),  # squawking 7700
         ],
         start=1,
     )
 ]
 
 
+def visible(t):
+    """[(plane, (lat, lon))] for the planes in range at time `t`."""
+    return [(p, pos) for p in PLANES if (pos := p.at(t))]
+
+
 def aircraft_json(now):
     aircraft = []
-    for p in PLANES:
-        lat, lon = p.at(now)
+    for p, (lat, lon) in visible(now):
         a = {
             "hex": f"{p.hex:06x}",
             "type": "adsb_icao",
@@ -97,8 +117,8 @@ def aircraft_json(now):
             "nic": 8,
             "nac_p": 10,
             "r": f"DEMO-{p.hex & 0xFF:02d}",
-            "t": "B38M" if p.alt > 20000 else "C172",
-            "desc": "DEMO JETLINER" if p.alt > 20000 else "DEMO LIGHT AIRCRAFT",
+            "t": p.type_code,
+            "desc": p.description,
             "ownOp": "DEMO AIR",
             "category": "A3" if p.alt > 20000 else "A1",
         }
@@ -131,7 +151,7 @@ def stats_json(now):
         "now": now,
         "gain_db": 42.1,
         "estimated_ppm": -1.5,
-        "aircraft_with_pos": len(PLANES),
+        "aircraft_with_pos": len(visible(now)),
         "aircraft_without_pos": 2,
         "last1min": {
             "start": end - 60,
@@ -158,10 +178,9 @@ def heatmap_file(day, half):
     for k in range(120):  # 15 s slices
         t = start + k * 15
         records = []
-        for p in PLANES:
+        for p, (lat, lon) in visible(t):
             if k % 4 == 0:  # callsign records about once a minute, like readsb
                 records.append(w.callsign(p.hex, p.callsign, p.squawk))
-            lat, lon = p.at(t)
             records.append(w.position(p.hex, lat, lon, alt_ft=p.alt, gs_kt=p.speed))
         slices.append((int(t * 1000), records))
     return w.build(slices)
@@ -171,9 +190,9 @@ def db_files():
     shard = {
         f"{p.hex:06X}"[2:]: [
             f"DEMO-{p.hex & 0xFF:02d}",
-            "B38M" if p.alt > 20000 else "C172",
+            p.type_code,
             "10" if p.mil else "00",
-            "DEMO JETLINER" if p.alt > 20000 else "DEMO LIGHT AIRCRAFT",
+            p.description,
         ]
         for p in PLANES
     }
