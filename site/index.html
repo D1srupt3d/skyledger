@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>skyledger: a ledger of everything your ADS-B receiver has heard</title>
+  <meta name="description" content="skyledger archives your readsb + tar1090 receiver in TimescaleDB, imports its heatmap history, and puts Grafana dashboards on top.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="name" href="./">skyledger</a>
+    <a href="https://github.com/D1srupt3d/skyledger">GitHub</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <h1>A ledger of everything your ADS-B receiver has heard.</h1>
+        <p class="lede">skyledger sits next to your readsb + tar1090 receiver and keeps what it hears: live positions, the history readsb already recorded, every flight, your reception range and your receiver's health. It stores it in TimescaleDB and shows it in Grafana.</p>
+        <div class="actions">
+          <a class="button primary" href="#quick-start">Quick start</a>
+          <a class="button" href="https://github.com/D1srupt3d/skyledger">View on GitHub</a>
+        </div>
+      </div>
+      <figure class="board">
+        <div class="strip"><span>DMO303</span><span>B38M<small>DEMO-03</small></span><span>FL390<small>highest</small></span><span>58 nm<small>closest</small></span></div>
+        <div class="strip"><span>DEMOX1</span><span>C172<small>DEMO-09</small></span><span>3000 ft<small>highest</small></span><span>1 nm<small>closest</small></span></div>
+        <div class="strip"><span>RCH99</span><span>C17<small>DEMO-10</small></span><span>FL280<small>highest</small></span><span>25 nm<small>closest</small></span></div>
+        <div class="strip"><span>DMO707</span><span>B38M<small>DEMO-07</small></span><span>FL340<small>highest</small></span><span>66 nm<small>closest</small></span></div>
+        <div class="strip"><span>DMO202</span><span>B38M<small>DEMO-02</small></span><span>FL350<small>highest</small></span><span>5 nm<small>closest</small></span></div>
+        <figcaption>Flights from the built-in demo, which invents a receiver in the North Atlantic.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2>What it keeps</h2>
+      <dl class="features">
+        <div>
+          <dt><h3>Your receiver's own history</h3></dt>
+          <dd>readsb's heatmap already holds a replay of every aircraft, but only tar1090 can read it and a container restart can wipe it. skyledger imports every day it can find, then adds each new day nightly and keeps it forever.</dd>
+        </div>
+        <div>
+          <dt><h3>Live positions</h3></dt>
+          <dd>Every 10 seconds, including what aircraft report beyond position: wind and temperature aloft, airspeeds, autopilot targets, emergency state and GPS integrity.</dd>
+        </div>
+        <div>
+          <dt><h3>Flights</h3></dt>
+          <dd>A searchable flight log built from the history, with flights per day, a weekday by hour grid, regulars, rare visitors and first-ever sightings.</dd>
+        </div>
+        <div>
+          <dt><h3>Reception range</h3></dt>
+          <dd>An all-time outline of the furthest you've heard in every direction, with bad decodes filtered out, plus range by bearing and a coverage heatmap.</dd>
+        </div>
+        <div>
+          <dt><h3>Receiver health</h3></dt>
+          <dd>Signal, noise, strong signals, message rate and gain, with alerts when the receiver goes quiet or deaf, or GPS interference shows up.</dd>
+        </div>
+        <div>
+          <dt><h3>Read-only on your receiver</h3></dt>
+          <dd>skyledger only ever reads from tar1090 over HTTP, and paces its history downloads so your receiver isn't hammered.</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section>
+      <h2>Three dashboards</h2>
+      <div class="shots">
+        <figure>
+          <a href="screenshots/overview.png"><img src="screenshots/overview.png" alt="Overview dashboard: aircraft now, flights per hour, reception map and range outline" loading="lazy"></a>
+          <figcaption>Overview: what's overhead now, today's flights and your reception.</figcaption>
+        </figure>
+        <figure>
+          <a href="screenshots/history.png"><img src="screenshots/history.png" alt="History dashboard: flight log, flights per day, weekday by hour grid" loading="lazy"></a>
+          <figcaption>History: the flight log, regulars and rare visitors.</figcaption>
+        </figure>
+        <figure>
+          <a href="screenshots/receiver.png"><img src="screenshots/receiver.png" alt="Receiver dashboard: signal, noise, message rate and gain" loading="lazy"></a>
+          <figcaption>Receiver: signal, noise, message rate and gain.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section>
+      <h2>How it works</h2>
+      <p>Four containers next to your receiver. <code>ingest</code> reads the live feed every 10 seconds, <code>history</code> imports readsb's heatmap once and then nightly, and Grafana reads the database with a read-only login.</p>
+      <svg class="flow" viewBox="0 0 900 250" role="img" aria-labelledby="flow-title">
+        <title id="flow-title">Your receiver feeds ingest and history, which write to TimescaleDB, which Grafana reads.</title>
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="head" d="M0 0L10 5L0 10z"/></marker></defs>
+        <rect x="10" y="80" width="190" height="90" rx="4"/>
+        <text x="30" y="118">Your receiver</text>
+        <text class="note" x="30" y="142">readsb + tar1090</text>
+        <rect class="ours" x="290" y="20" width="170" height="80" rx="4"/>
+        <text x="310" y="55">ingest</text>
+        <text class="note" x="310" y="78">live, every 10 s</text>
+        <rect class="ours" x="290" y="150" width="170" height="80" rx="4"/>
+        <text x="310" y="185">history</text>
+        <text class="note" x="310" y="208">backfill, then nightly</text>
+        <rect class="ours" x="540" y="80" width="160" height="90" rx="4"/>
+        <text x="560" y="118">TimescaleDB</text>
+        <text class="note" x="560" y="142">compressed</text>
+        <rect class="ours" x="770" y="80" width="120" height="90" rx="4"/>
+        <text x="790" y="118">Grafana</text>
+        <text class="note" x="790" y="142">read-only</text>
+        <path d="M200 110L288 62" marker-end="url(#arrow)"/>
+        <path d="M200 140L288 188" marker-end="url(#arrow)"/>
+        <path d="M460 60L538 110" marker-end="url(#arrow)"/>
+        <path d="M460 190L538 140" marker-end="url(#arrow)"/>
+        <path d="M700 125L768 125" marker-end="url(#arrow)"/>
+      </svg>
+    </section>
+
+    <section id="quick-start">
+      <h2>Quick start</h2>
+      <p>You need a readsb + tar1090 receiver you can reach over HTTP, and Docker with Compose or a Kubernetes cluster. Put the database on an SSD, not an SD card.</p>
+      <div class="steps">
+        <div>
+          <h3>Docker Compose</h3>
+          <p>Copy <code>.env.example</code> to <code>.env</code>, set <code>TAR1090_URL</code>, <code>TZ</code> and the three passwords, then start it. Grafana is on port 3000.</p>
+          <div class="code"><pre><code>git clone https://github.com/D1srupt3d/skyledger.git
+cd skyledger
+cp .env.example .env
+docker compose up -d</code></pre></div>
+        </div>
+        <div>
+          <h3>Kubernetes with Helm</h3>
+          <div class="code"><pre><code>helm install skyledger oci://ghcr.io/d1srupt3d/charts/skyledger \
+  --namespace skyledger --create-namespace \
+  --set tar1090Url=http://ultrafeeder/ --set timezone=Europe/London</code></pre></div>
+        </div>
+        <div>
+          <h3>Try it without a receiver</h3>
+          <p>With the passwords set in <code>.env</code>, this starts a demo feed with a week of made-up history.</p>
+          <div class="code"><pre><code>TAR1090_URL=http://demo-feed:8080/ COMPOSE_PROFILES=grafana,demo docker compose up -d</code></pre></div>
+        </div>
+      </div>
+      <p style="margin-top:2rem">Connecting to ultrafeeder or adsb.im, using your own Grafana or database, and every setting: <a href="https://github.com/D1srupt3d/skyledger#readme">read the full README</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    skyledger is open source under the <a href="https://github.com/D1srupt3d/skyledger/blob/main/LICENSE">LICENSE</a> in the repository. <a href="https://github.com/D1srupt3d/skyledger">Source on GitHub</a>.
+  </footer>
+</div>
+<script>
+  // Copy buttons: added by script so they don't appear when JS is off.
+  for (const box of document.querySelectorAll(".code")) {
+    const button = document.createElement("button");
+    button.className = "copy";
+    button.type = "button";
+    button.textContent = "Copy";
+    button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(box.querySelector("code").textContent);
+      button.textContent = "Copied";
+      setTimeout(() => (button.textContent = "Copy"), 1500);
+    });
+    box.append(button);
+  }
+</script>
+</body>
+</html>
