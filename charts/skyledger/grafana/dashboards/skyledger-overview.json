@@ -649,7 +649,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), count(DISTINCT hex) AS aircraft\nFROM positions WHERE $__timeFilter(time)\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval, NULL), count(DISTINCT hex) AS aircraft\nFROM positions WHERE $__timeFilter(time)\nGROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -709,7 +709,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(time, $__interval),\n  count(DISTINCT hex) FILTER (WHERE on_ground) AS \"ground\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro < 10000) AS \"below 10k ft\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro >= 10000 AND alt_baro < 30000) AS \"10k-30k ft\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro >= 30000) AS \"30k ft and up\"\nFROM positions WHERE $__timeFilter(time)\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval, NULL),\n  count(DISTINCT hex) FILTER (WHERE on_ground) AS \"ground\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro < 10000) AS \"below 10k ft\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro >= 10000 AND alt_baro < 30000) AS \"10k-30k ft\",\n  count(DISTINCT hex) FILTER (WHERE alt_baro >= 30000) AS \"30k ft and up\"\nFROM positions WHERE $__timeFilter(time)\nGROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {

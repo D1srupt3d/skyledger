@@ -113,7 +113,7 @@ def test_5_every_dashboard_query_runs(grafana_conn):
     for name, sql in queries.items():
         e = re.sub(r"\$__timeFilter\(([\w.]+)\)", rf"\1 BETWEEN '{frm}' AND '{now.isoformat()}'", sql)
         group = r"time_bucket('5 minutes', \1) AS time"
-        e = re.sub(r"\$__timeGroupAlias\(([\w.]+), *\$__interval\)", group, e)
+        e = re.sub(r"\$__timeGroupAlias\(([\w.]+), *\$__interval(?:, *NULL)?\)", group, e)
         e = e.replace("$__timeFrom()", f"'{frm}'").replace("$__timeTo()", f"'{now.isoformat()}'")
         assert "$__" not in e, (name, e)
         grafana_conn.execute(e).fetchall()
