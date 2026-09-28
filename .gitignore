@@ -6,3 +6,8 @@ __pycache__/
 .ruff_cache/
 dist/
 .scrub-patterns
+
+# Claude Code files (per-repo folder, CLAUDE.md memory files) - never shared
+.claude/
+CLAUDE.md
+CLAUDE.local.md
