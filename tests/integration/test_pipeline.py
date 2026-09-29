@@ -92,6 +92,30 @@ def test_3_history(conn, settings):
     assert history.run_once(conn, feed, settings) == {"imported": 0, "failed": 0}
 
 
+def test_3_history_fills_live_gaps(conn, settings):
+    # Live data an hour apart yesterday, then the rows from test_2 now: two gaps an outage left.
+    noon = datetime.datetime.combine(datetime.datetime.now(datetime.UTC).date(), datetime.time(12),
+                                     datetime.UTC) - datetime.timedelta(days=1)
+    edges = (noon, noon + datetime.timedelta(hours=1))
+    for t in edges:
+        conn.execute("INSERT INTO positions (time, hex, lat, lon, on_ground) "
+                     "VALUES (%s, 'edge', 0, 0, false)", (t,))
+    live_before = count(conn, "SELECT count(*) FROM positions")
+    history.run_once(conn, Feed(settings.tar1090_url), settings)
+    inside = "FROM {} WHERE time > %s AND time < %s AND hex <> 'edge'"
+    in_history = conn.execute("SELECT count(*) " + inside.format("history_positions"), edges).fetchone()[0]
+    assert in_history > 0
+    assert conn.execute("SELECT count(*) " + inside.format("positions"), edges).fetchone()[0] == in_history
+    # Nothing before the first live row: filling the past is history's job, not live's.
+    assert count(conn, "SELECT count(*) FROM positions WHERE time < (SELECT min(time) FROM positions "
+                       "WHERE hex = 'edge')") == 0
+    # Every gap is closed now, so another run copies nothing.
+    filled = count(conn, "SELECT count(*) FROM positions")
+    assert filled > live_before + in_history  # the gap from noon + 1h to now was filled too
+    history.run_once(conn, Feed(settings.tar1090_url), settings)
+    assert count(conn, "SELECT count(*) FROM positions") == filled
+
+
 def test_4_grafana_role_is_read_only(grafana_conn):
     assert count(grafana_conn, "SELECT count(*) FROM flights") > 0
     with pytest.raises(psycopg.errors.InsufficientPrivilege):

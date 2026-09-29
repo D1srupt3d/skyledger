@@ -156,6 +156,11 @@ def run_once(conn, feed, settings, today=None):
         imported, failed = imported + n, failed + f
         day += datetime.timedelta(days=1)
 
+    ALIVE.touch()
+    filled = conn.execute(sql.FILL_LIVE_GAPS).rowcount
+    if filled:
+        log.info("filled gaps in live positions with %d history positions", filled)
+
     # The aircraft db load is long and uninterruptible: start it with a fresh liveness window.
     ALIVE.touch()
     try:

@@ -67,3 +67,21 @@ WHERE EXCLUDED.distance_nm > history_outline.distance_nm
 """
 
 REFRESH_FLIGHTS = "REFRESH MATERIALIZED VIEW flights"
+
+# Copies history_positions into gaps in the live positions (an ingest or database
+# outage), so the live panels show what the receiver heard meanwhile. Only rows
+# strictly inside a gap are copied: history is one sample per aircraft per minute,
+# so a filled gap is closed and a rerun copies nothing. History has no wind,
+# signal or accuracy fields, so those panels stay empty over a filled gap.
+FILL_LIVE_GAPS = """
+WITH gaps AS (
+    SELECT prev, time AS next
+    FROM (SELECT time, lag(time) OVER (ORDER BY time) AS prev FROM positions) t
+    WHERE time - prev > interval '3 minutes'
+)
+INSERT INTO positions (time, hex, flight, squawk, source, lat, lon, alt_baro, on_ground, gs,
+                       distance_nm, bearing)
+SELECT h.time, h.hex, h.flight, h.squawk, h.source, h.lat, h.lon, h.alt_baro, h.on_ground, h.gs,
+       h.distance_nm, h.bearing
+FROM gaps JOIN history_positions h ON h.time > gaps.prev AND h.time < gaps.next
+"""

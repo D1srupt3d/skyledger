@@ -87,6 +87,7 @@ def timeseries(
     points=False,
     thresholds=None,
     time_from=None,
+    insert_nulls=None,
 ):
     defaults = {
         "unit": unit,
@@ -107,6 +108,8 @@ def timeseries(
         defaults["custom"]["thresholdsStyle"] = {"mode": "dashed"}
     if maximum is not None:
         defaults["max"] = maximum
+    if insert_nulls:
+        defaults["custom"]["insertNulls"] = insert_nulls
     show_legend = stack if legend is None else legend
     extra = {"timeFrom": time_from} if time_from else {}
     return {
@@ -152,6 +155,9 @@ def unit_override(field, unit, decimals=None):
 # Grafana macros: $__timeFilter(col), $__timeGroupAlias(col, $__interval, NULL).
 # The NULL fills empty buckets so an outage shows as a gap, not a straight line.
 # With timescaledb: true on the datasource, $__timeGroup uses time_bucket().
+# Receiver panels plot raw per-minute rows instead: Grafana breaks the line where
+# rows are further apart than RX_GAP (ms).
+RX_GAP = 180000
 
 # Altitude band for the weather panels; callers filter alt_baro IS NOT NULL.
 BAND = (
@@ -470,6 +476,7 @@ def build():
             "noise floor means interference nearby. Empty on a readsb without its own SDR.",
             SQL["rx_signal"],
             {"x": 0, "y": y, "w": 8, "h": 8},
+            insert_nulls=RX_GAP,
             unit="suffix: dBFS",
             legend=True,
             minimum=None,
@@ -481,6 +488,7 @@ def build():
             "Valid Mode S / ADS-B messages decoded per second.",
             SQL["rx_messages"],
             {"x": 8, "y": y, "w": 8, "h": 8},
+            insert_nulls=RX_GAP,
             unit="short",
         )
     )
@@ -491,6 +499,7 @@ def build():
             "nearby aircraft overload the dongle and weak, distant ones get lost.",
             SQL["rx_strong"],
             {"x": 16, "y": y, "w": 8, "h": 8},
+            insert_nulls=RX_GAP,
             unit="short",
         )
     )
@@ -501,6 +510,7 @@ def build():
             "Aircraft seen in the last minute, with and without a decoded position.",
             SQL["rx_aircraft"],
             {"x": 0, "y": y, "w": 8, "h": 8},
+            insert_nulls=RX_GAP,
             unit="short",
             stack=True,
         )
@@ -511,6 +521,7 @@ def build():
             "Furthest position decoded in each minute.",
             SQL["rx_range"],
             {"x": 8, "y": y, "w": 8, "h": 8},
+            insert_nulls=RX_GAP,
             unit="suffix: nm",
         )
     )

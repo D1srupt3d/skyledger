@@ -98,3 +98,13 @@ def test_grouped_queries_fill_empty_buckets_with_null():
     assert len(grouped) == 6
     for name, sql in grouped.items():
         assert "$__timeGroupAlias(time, $__interval, NULL)" in sql, name
+
+
+def test_raw_receiver_panels_break_lines_at_outages():
+    # Raw receiver_stats rows have no NULL-filled buckets: Grafana must insert the gap itself.
+    panels = [p for d in dashboards().values() for p in d["panels"] if p["type"] == "timeseries"]
+    raw = [p for p in panels if "FROM receiver_stats" in p["targets"][0]["rawSql"]]
+    assert len(raw) == 5
+    for p in panels:
+        custom = p["fieldConfig"]["defaults"]["custom"]
+        assert custom.get("insertNulls") == (gen.RX_GAP if p in raw else None), p["title"]

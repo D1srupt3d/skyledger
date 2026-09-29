@@ -38,6 +38,7 @@ Each run imports every file from the first history day through yesterday (UTC) t
 - A 404 is recorded as a real gap (the receiver was down that half hour), unless all 48 files of a day are 404, which looks like a broken web server and is retried instead.
 - Other errors aren't recorded, so the next run retries them.
 - After each day: `daily_stats` for that local day and the day before (a local day spans two UTC days of files), and `history_outline` extended with that day's positions.
+- After the days: gaps longer than 3 minutes in `positions` (an ingest or database outage) are filled with the `history_positions` rows inside them, so the live panels show what the receiver heard meanwhile. History has no wind, signal or accuracy fields, so those panels stay empty over a filled gap.
 - After the run: the aircraft database is reloaded if tar1090's version changed, and `flights` is rebuilt.
 
 ### Heatmap file format
