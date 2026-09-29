@@ -566,7 +566,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(time, $__interval),\n  greatest(0, count(DISTINCT hex) FILTER (WHERE nic < 7 OR nac_p < 8) - 1)::float8\n    / count(DISTINCT hex) AS \"degraded\"\nFROM positions WHERE $__timeFilter(time) AND nic IS NOT NULL AND nac_p IS NOT NULL\nGROUP BY 1 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval, NULL),\n  greatest(0, count(DISTINCT hex) FILTER (WHERE nic < 7 OR nac_p < 8) - 1)::float8\n    / count(DISTINCT hex) AS \"degraded\"\nFROM positions WHERE $__timeFilter(time) AND nic IS NOT NULL AND nac_p IS NOT NULL\nGROUP BY 1 ORDER BY 1"
         }
       ],
       "fieldConfig": {

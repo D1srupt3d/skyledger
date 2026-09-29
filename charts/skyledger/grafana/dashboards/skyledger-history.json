@@ -674,7 +674,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n  percentile_cont(0.5) WITHIN GROUP (ORDER BY wind_speed) AS value\nFROM positions WHERE $__timeFilter(time) AND wind_speed IS NOT NULL AND alt_baro IS NOT NULL\nGROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval, NULL), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n  percentile_cont(0.5) WITHIN GROUP (ORDER BY wind_speed) AS value\nFROM positions WHERE $__timeFilter(time) AND wind_speed IS NOT NULL AND alt_baro IS NOT NULL\nGROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -734,7 +734,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT $__timeGroupAlias(time, $__interval), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n  percentile_cont(0.5) WITHIN GROUP (ORDER BY oat) AS value\nFROM positions WHERE $__timeFilter(time) AND oat IS NOT NULL AND alt_baro IS NOT NULL\nGROUP BY 1, 2 ORDER BY 1"
+          "rawSql": "SELECT $__timeGroupAlias(time, $__interval, NULL), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n  percentile_cont(0.5) WITHIN GROUP (ORDER BY oat) AS value\nFROM positions WHERE $__timeFilter(time) AND oat IS NOT NULL AND alt_baro IS NOT NULL\nGROUP BY 1, 2 ORDER BY 1"
         }
       ],
       "fieldConfig": {
@@ -793,7 +793,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time, metric, CASE WHEN d < 0 THEN d + 360 ELSE d END AS value FROM (\n  SELECT $__timeGroupAlias(time, $__interval), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n    degrees(atan2(avg(sin(radians(wind_dir))), avg(cos(radians(wind_dir))))) AS d\n  FROM positions WHERE $__timeFilter(time) AND wind_dir IS NOT NULL AND alt_baro IS NOT NULL\n  GROUP BY 1, 2\n) w ORDER BY 1"
+          "rawSql": "SELECT time, metric, CASE WHEN d < 0 THEN d + 360 ELSE d END AS value FROM (\n  SELECT $__timeGroupAlias(time, $__interval, NULL), CASE WHEN alt_baro < 10000 THEN 'below 10k ft' WHEN alt_baro < 20000 THEN '10k-20k ft' WHEN alt_baro < 30000 THEN '20k-30k ft' ELSE '30k ft and up' END AS metric,\n    degrees(atan2(avg(sin(radians(wind_dir))), avg(cos(radians(wind_dir))))) AS d\n  FROM positions WHERE $__timeFilter(time) AND wind_dir IS NOT NULL AND alt_baro IS NOT NULL\n  GROUP BY 1, 2\n) w ORDER BY 1"
         }
       ],
       "fieldConfig": {

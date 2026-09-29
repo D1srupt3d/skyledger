@@ -90,3 +90,11 @@ def test_day_hour_grid_shows_one_week_of_dates():
 
 def test_dashboards_live_in_the_chart():
     assert gen.OUT == ROOT / "charts" / "skyledger" / "grafana" / "dashboards"
+
+
+def test_grouped_queries_fill_empty_buckets_with_null():
+    # Without a fill, an outage returns no rows and Grafana draws a straight line across it.
+    grouped = {k: q for k, q in gen.SQL.items() if "$__timeGroupAlias" in q}
+    assert len(grouped) == 6
+    for name, sql in grouped.items():
+        assert "$__timeGroupAlias(time, $__interval, NULL)" in sql, name

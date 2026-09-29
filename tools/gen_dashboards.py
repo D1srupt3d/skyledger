@@ -149,7 +149,8 @@ def unit_override(field, unit, decimals=None):
 
 
 # --- SQL -------------------------------------------------------------------
-# Grafana macros: $__timeFilter(col), $__timeGroupAlias(col, $__interval).
+# Grafana macros: $__timeFilter(col), $__timeGroupAlias(col, $__interval, NULL).
+# The NULL fills empty buckets so an outage shows as a gap, not a straight line.
 # With timescaledb: true on the datasource, $__timeGroup uses time_bucket().
 
 # Altitude band for the weather panels; callers filter alt_baro IS NOT NULL.
@@ -205,11 +206,11 @@ SQL = {
     "positions_range": "SELECT count(*) FROM positions WHERE $__timeFilter(time)",
     "furthest": "SELECT max(distance_nm) FROM positions WHERE $__timeFilter(time)",
     "tracked": (
-        "SELECT $__timeGroupAlias(time, $__interval), count(DISTINCT hex) AS aircraft\n"
+        "SELECT $__timeGroupAlias(time, $__interval, NULL), count(DISTINCT hex) AS aircraft\n"
         "FROM positions WHERE $__timeFilter(time)\nGROUP BY 1 ORDER BY 1"
     ),
     "altitude": (
-        "SELECT $__timeGroupAlias(time, $__interval),\n"
+        "SELECT $__timeGroupAlias(time, $__interval, NULL),\n"
         '  count(DISTINCT hex) FILTER (WHERE on_ground) AS "ground",\n'
         '  count(DISTINCT hex) FILTER (WHERE alt_baro < 10000) AS "below 10k ft",\n'
         '  count(DISTINCT hex) FILTER (WHERE alt_baro >= 10000 AND alt_baro < 30000) AS "10k-30k ft",\n'
@@ -254,13 +255,13 @@ SQL = {
     # Weather aloft: long format (time, metric, value); Grafana makes one series
     # per `metric`. Airborne only, banded on barometric altitude.
     "wind_speed": (
-        "SELECT $__timeGroupAlias(time, $__interval), " + BAND + " AS metric,\n"
+        "SELECT $__timeGroupAlias(time, $__interval, NULL), " + BAND + " AS metric,\n"
         "  percentile_cont(0.5) WITHIN GROUP (ORDER BY wind_speed) AS value\n"
         "FROM positions WHERE $__timeFilter(time) AND wind_speed IS NOT NULL AND alt_baro IS NOT NULL\n"
         "GROUP BY 1, 2 ORDER BY 1"
     ),
     "oat": (
-        "SELECT $__timeGroupAlias(time, $__interval), " + BAND + " AS metric,\n"
+        "SELECT $__timeGroupAlias(time, $__interval, NULL), " + BAND + " AS metric,\n"
         "  percentile_cont(0.5) WITHIN GROUP (ORDER BY oat) AS value\n"
         "FROM positions WHERE $__timeFilter(time) AND oat IS NOT NULL AND alt_baro IS NOT NULL\n"
         "GROUP BY 1, 2 ORDER BY 1"
@@ -269,7 +270,7 @@ SQL = {
     # 10 degrees would give ~180). atan2 returns -180..180, shifted to 0..360.
     "wind_dir": (
         "SELECT time, metric, CASE WHEN d < 0 THEN d + 360 ELSE d END AS value FROM (\n"
-        "  SELECT $__timeGroupAlias(time, $__interval), " + BAND + " AS metric,\n"
+        "  SELECT $__timeGroupAlias(time, $__interval, NULL), " + BAND + " AS metric,\n"
         "    degrees(atan2(avg(sin(radians(wind_dir))), avg(cos(radians(wind_dir))))) AS d\n"
         "  FROM positions WHERE $__timeFilter(time) AND wind_dir IS NOT NULL AND alt_baro IS NOT NULL\n"
         "  GROUP BY 1, 2\n"
@@ -290,7 +291,7 @@ SQL = {
     # NACp < 8 (accuracy 93 m or worse). GPSJam's formula: (bad - 1) / total,
     # so one aircraft with broken avionics doesn't read as interference.
     "gps_degraded": (
-        "SELECT $__timeGroupAlias(time, $__interval),\n"
+        "SELECT $__timeGroupAlias(time, $__interval, NULL),\n"
         "  greatest(0, count(DISTINCT hex) FILTER (WHERE nic < 7 OR nac_p < 8) - 1)::float8\n"
         '    / count(DISTINCT hex) AS "degraded"\n'
         "FROM positions WHERE $__timeFilter(time) AND nic IS NOT NULL AND nac_p IS NOT NULL\n"
