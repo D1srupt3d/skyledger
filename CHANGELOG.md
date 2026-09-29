@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.5
+
+- Live positions: each history run (at start and nightly) fills gaps in live positions left by an ingest or database outage with the receiver's own history, so the live panels show what was heard meanwhile. Filled stretches have one position per aircraft per minute and no wind, temperature, signal or GPS accuracy data, so those panels stay empty there. Gaps from the current UTC day fill after the next day's import.
+- Dashboards: the remaining Receiver panels (Signal and noise, Messages per second, Strong signals, Aircraft heard, Max range) now show an outage as a gap instead of a straight line.
+
 ## 0.3.4
 
 - Dashboards: an outage shows as a gap instead of a straight line joining the last point before it to the first one after it. Affects Aircraft tracked and Aircraft by altitude (Overview), Wind speed, Outside air temperature and Wind direction (History), and Aircraft with degraded GPS (Receiver). A stretch with no aircraft at all now shows as a gap too. The other Receiver panels still draw a line across an outage.
