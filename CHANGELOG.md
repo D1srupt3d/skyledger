@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4
+
+- Dashboards: an outage shows as a gap instead of a straight line joining the last point before it to the first one after it. Affects Aircraft tracked and Aircraft by altitude (Overview), Wind speed, Outside air temperature and Wind direction (History), and Aircraft with degraded GPS (Receiver). A stretch with no aircraft at all now shows as a gap too. The other Receiver panels still draw a line across an outage.
+
 ## 0.3.3
 
 - Demo feed: aircraft now leave range between passes, so its week of history has many separate flights instead of one 7-day flight per aircraft. The History dashboard's flight log, flights per hour, regulars and rare visitors fill in (the military RCH99 is a C17 that visits every 2.5 days or so), and at least two aircraft are always overhead.
