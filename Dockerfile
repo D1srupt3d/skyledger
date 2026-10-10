@@ -1,6 +1,6 @@
 # skyledger: one image, roles as subcommands (skyledger migrate|ingest|history|demo-feed).
 FROM python:3.14-slim AS build
-COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13.0 /uv /bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 # Dependencies first, so code changes don't reinstall them.
