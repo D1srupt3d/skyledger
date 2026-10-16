@@ -1,5 +1,5 @@
 # skyledger: one image, roles as subcommands (skyledger migrate|ingest|history|demo-feed).
-FROM python:3.14-slim AS build
+FROM python:3.15-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /bin/uv
 WORKDIR /app
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
@@ -10,7 +10,7 @@ COPY README.md LICENSE ./
 COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.14-slim
+FROM python:3.15-slim
 RUN useradd --system --uid 10001 --no-create-home skyledger
 COPY --from=build /app/.venv /app/.venv
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1
