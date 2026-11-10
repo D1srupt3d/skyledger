@@ -70,6 +70,11 @@ services:
   web:
     <<: *skyledger
     command: web
+    # Its own environment (a merge would bring the owner's POSTGRES_PASSWORD): only
+    # the read-only login, so web can't write even if someone breaks in.
+    environment:
+      READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD:-${GRAFANA_DB_PASSWORD:?set READONLY_DB_PASSWORD in .env}}
+      TZ: ${TZ:-UTC}
     profiles: [web]
     ports:
       - "${WEB_PORT:-1200}:1200"

@@ -33,9 +33,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "skyledger.fullname" . }}
+          # Only the read-only login's password (under the Secret's existing key), never
+          # the owner's: web can't write, even if someone breaks in.
           env:
-            {{- include "skyledger.secretEnv" (dict "root" . "key" "POSTGRES_PASSWORD") | nindent 12 }}
-            # The read-only login's password, under the Secret's existing key.
             - name: READONLY_DB_PASSWORD
               valueFrom:
                 secretKeyRef:

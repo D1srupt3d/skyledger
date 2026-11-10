@@ -633,7 +633,8 @@ func TestWeb(t *testing.T) {
 	// The secret keeps its GRAFANA_DB_PASSWORD key, so existingSecret users need nothing new.
 	e := env(t, c)
 	eq(t, get(t, e, "READONLY_DB_PASSWORD", "valueFrom", "secretKeyRef", "key"), "GRAFANA_DB_PASSWORD")
-	eq(t, get(t, e, "POSTGRES_PASSWORD", "valueFrom", "secretKeyRef", "key"), "POSTGRES_PASSWORD")
+	_, owner := e["POSTGRES_PASSWORD"]
+	ok(t, !owner, "web must not get the database owner's password")
 	ann := getMap(t, dep, "spec", "template", "metadata", "annotations")
 	_, cfg := ann["checksum/config"]
 	_, sec := ann["checksum/secret"]

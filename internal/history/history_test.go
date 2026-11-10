@@ -131,7 +131,7 @@ func settings(t *testing.T) config.Settings {
 	s, err := config.FromEnv(func(k string) (string, bool) {
 		v, ok := map[string]string{"TAR1090_URL": "http://r/", "POSTGRES_PASSWORD": "x", "FETCH_PAUSE": "0"}[k]
 		return v, ok
-	}, true)
+	}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

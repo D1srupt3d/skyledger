@@ -20,7 +20,7 @@ func with(extra map[string]string) map[string]string {
 
 func mustLoad(t *testing.T, m map[string]string) Settings {
 	t.Helper()
-	s, err := FromEnv(env(m), true)
+	s, err := FromEnv(env(m), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestInvalid(t *testing.T) {
 		{with(map[string]string{"HISTORY_START": "last year"}), "HISTORY_START"},
 	}
 	for _, c := range cases {
-		_, err := FromEnv(env(c.env), true)
+		_, err := FromEnv(env(c.env), false)
 		if err == nil || !strings.Contains(err.Error(), c.message) {
 			t.Errorf("%v: got %v, want %q", c.env, err, c.message)
 		}
@@ -144,7 +144,7 @@ func TestReadOnlyPasswordBothSame(t *testing.T) {
 
 func TestReadOnlyPasswordConflict(t *testing.T) {
 	_, err := FromEnv(env(with(map[string]string{
-		"READONLY_DB_PASSWORD": "s3cret-one", "GRAFANA_DB_PASSWORD": "s3cret-two"})), true)
+		"READONLY_DB_PASSWORD": "s3cret-one", "GRAFANA_DB_PASSWORD": "s3cret-two"})), false)
 	if err == nil {
 		t.Fatal("no error for two different passwords")
 	}
@@ -157,16 +157,25 @@ func TestReadOnlyPasswordConflict(t *testing.T) {
 	}
 }
 
-func TestTar1090OptionalWithoutFeed(t *testing.T) {
-	s, err := FromEnv(env(map[string]string{"POSTGRES_PASSWORD": "pw"}), false)
+func TestWebNeedsNeitherFeedNorOwnerPassword(t *testing.T) {
+	// web reads no receiver and logs in as the read-only role: the owner's password
+	// must not have to be in its environment.
+	s, err := FromEnv(env(map[string]string{}), true)
 	if err != nil || s.Tar1090URL != "" {
-		t.Errorf("got %q, %v", s.Tar1090URL, err)
+		t.Fatalf("got %q, %v", s.Tar1090URL, err)
 	}
-	if _, err := FromEnv(env(map[string]string{"POSTGRES_PASSWORD": "pw", "TAR1090_URL": "receiver/"}), false); err == nil {
+	if s.DatabaseURL != "postgresql://skyledger@timescaledb:5432/skyledger" {
+		t.Errorf("database url %q", s.DatabaseURL)
+	}
+	if _, err := FromEnv(env(map[string]string{"TAR1090_URL": "receiver/"}), true); err == nil {
 		t.Error("a set TAR1090_URL should still be validated")
 	}
-	if _, err := FromEnv(env(map[string]string{"POSTGRES_PASSWORD": "pw"}), true); err == nil ||
+	if _, err := FromEnv(env(map[string]string{"POSTGRES_PASSWORD": "pw"}), false); err == nil ||
 		!strings.Contains(err.Error(), "TAR1090_URL is required") {
-		t.Errorf("needFeed: %v", err)
+		t.Errorf("other commands still need TAR1090_URL: %v", err)
+	}
+	if _, err := FromEnv(env(map[string]string{"TAR1090_URL": "http://r/"}), false); err == nil ||
+		!strings.Contains(err.Error(), "POSTGRES_PASSWORD") {
+		t.Errorf("other commands still need POSTGRES_PASSWORD: %v", err)
 	}
 }

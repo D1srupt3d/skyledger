@@ -14,22 +14,23 @@ import (
 
 // Settings for every skyledger command. Dates are UTC midnights.
 type Settings struct {
-	Tar1090URL        string
-	DatabaseURL       string
-	TZ                *time.Location
-	RetentionDays     int
-	Poll              time.Duration
-	FetchPause        time.Duration
-	HistoryAt         time.Time // only the clock time is used
-	HistoryStart      *time.Time
+	Tar1090URL    string
+	DatabaseURL   string
+	TZ            *time.Location
+	RetentionDays int
+	Poll          time.Duration
+	FetchPause    time.Duration
+	HistoryAt     time.Time // only the clock time is used
+	HistoryStart  *time.Time
 	// ReadOnlyDBPassword is skyledger_grafana's (Grafana and web log in as it).
 	ReadOnlyDBPassword string
 }
 
 // FromEnv builds Settings from a lookup such as os.LookupEnv. Errors name the variable.
-// needFeed is false for commands that never read the receiver (web): TAR1090_URL
-// may then be empty, though a set one is still checked.
-func FromEnv(lookup func(string) (string, bool), needFeed bool) (Settings, error) {
+// web is true for `skyledger web`: it reads no receiver and logs in as the read-only
+// role, so it needs neither TAR1090_URL (a set one is still checked) nor the owner's
+// POSTGRES_PASSWORD, which then stays out of its environment.
+func FromEnv(lookup func(string) (string, bool), web bool) (Settings, error) {
 	get := func(name, def string) string {
 		v, _ := lookup(name)
 		if v = strings.TrimSpace(v); v == "" {
@@ -40,7 +41,7 @@ func FromEnv(lookup func(string) (string, bool), needFeed bool) (Settings, error
 	var s Settings
 
 	u := get("TAR1090_URL", "")
-	if u == "" && needFeed {
+	if u == "" && !web {
 		return s, fmt.Errorf("TAR1090_URL is required: the base URL of your tar1090, e.g. http://ultrafeeder/")
 	}
 	if u != "" {
@@ -57,11 +58,14 @@ func FromEnv(lookup func(string) (string, bool), needFeed bool) (Settings, error
 	s.DatabaseURL = get("DATABASE_URL", "")
 	if s.DatabaseURL == "" {
 		password := get("POSTGRES_PASSWORD", "")
-		if password == "" {
+		if password == "" && !web {
 			return s, fmt.Errorf("POSTGRES_PASSWORD (or DATABASE_URL) is required")
 		}
-		s.DatabaseURL = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s",
-			quote(get("POSTGRES_USER", "skyledger")), quote(password),
+		userinfo := quote(get("POSTGRES_USER", "skyledger"))
+		if password != "" {
+			userinfo += ":" + quote(password)
+		}
+		s.DatabaseURL = fmt.Sprintf("postgresql://%s@%s:%s/%s", userinfo,
 			get("POSTGRES_HOST", "timescaledb"), get("POSTGRES_PORT", "5432"),
 			quote(get("POSTGRES_DB", "skyledger")))
 	}
