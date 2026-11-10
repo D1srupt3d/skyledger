@@ -23,8 +23,9 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - run: uv sync --frozen
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v4.3.0
@@ -36,20 +37,24 @@ jobs:
             "--set tar1090Url=http://rx/ --set timescaledb.enabled=false --set database.host=db"
             "--set tar1090Url=http://rx/ --set grafana.enabled=false"
             "--set demo.enabled=true --set grafana.ingress.enabled=true --set grafana.ingress.host=sky.example"
-            "-f tests/unit/values-homelab.yaml"
+            "-f tests/chart/values-homelab.yaml"
           )
           for m in "${modes[@]}"; do
             helm lint --strict charts/skyledger $m
             helm template skyledger charts/skyledger $m > "$RUNNER_TEMP/render.yaml"
             docker run --rm -v "$RUNNER_TEMP:/w" ghcr.io/yannh/kubeconform:v0.8.0 -strict -summary /w/render.yaml
           done
-      - run: uv run ruff check
+      - name: gofmt
+        run: test -z "$(gofmt -l . | tee /dev/stderr)"
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
       - name: Dashboards match the generator
-        run: uv run python tools/gen_dashboards.py --check
+        run: go run ./tools/gendashboards --check
       - name: Scrub (generic checks)
         run: bash tools/scrub_check.sh
-      - name: Tests, including the integration test against TimescaleDB
-        run: uv run pytest -v
+      - name: Tests, including the integration tests against TimescaleDB, and 80% coverage per package
+        run: tools/coverage.sh
         env:
           SKYLEDGER_TEST_DSN: postgresql://skyledger:test@localhost:5432/skyledger
 
