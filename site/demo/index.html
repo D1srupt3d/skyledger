@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skyledger demo</title>
+<meta name="description" content="A preview of skyledger's web UI with a simulated receiver and simulated aircraft.">
+<!-- Preview of the planned web UI. All data is simulated in this page; nothing is fetched from a receiver. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css" integrity="sha256-32MMao1vjur/JktQ9zzlsRT2Rv/ZoLt08EmwoAE1+gQ=" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js" integrity="sha256-LSforT0igWRSXOIT+dxxbzm0467gzHc/s0kcls9JIaI=" crossorigin="anonymous"></script>
+<style>
+:root {
+  color-scheme: light;
+  /* Sectional-chart paper and inks */
+  --paper: #eef2ec;          /* terrain tint */
+  --paper-2: #e2e9e1;        /* a step darker: rows, inputs */
+  --ink: #17222d;            /* chart lettering */
+  --ink-2: #4a5a66;          /* secondary text */
+  --ink-3: #6f7d86;          /* tertiary, axis labels */
+  --rule: #c6d1c9;           /* rings, grid */
+  --airspace: #1f5aa6;       /* class B blue: series 1, today's reach */
+  --airway: #b3266e;         /* airway magenta: series 2, all-time outline */
+  --alt-1: #6da7ec; --alt-2: #2a78d6; --alt-3: #1c5cab; --alt-4: #0d366b;
+  --heat-0: #e2e9e1; --heat-1: #b7d3f6; --heat-2: #6da7ec; --heat-3: #2a78d6; --heat-4: #104281;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  --focus: #1f5aa6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --paper: #122030; --paper-2: #1a2b3d; --ink: #e7edf2; --ink-2: #a9b8c4; --ink-3: #8394a2;
+    --rule: #2c3f52; --airspace: #5b93e0; --airway: #e0619d;
+    --alt-1: #184f95; --alt-2: #2a78d6; --alt-3: #6da7ec; --alt-4: #b7d3f6;
+    --heat-0: #1a2b3d; --heat-1: #184f95; --heat-2: #2a78d6; --heat-3: #6da7ec; --heat-4: #cde2fb;
+    --focus: #8fb8f0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #122030; --paper-2: #1a2b3d; --ink: #e7edf2; --ink-2: #a9b8c4; --ink-3: #8394a2;
+  --rule: #2c3f52; --airspace: #5b93e0; --airway: #e0619d;
+  --alt-1: #184f95; --alt-2: #2a78d6; --alt-3: #6da7ec; --alt-4: #b7d3f6;
+  --heat-0: #1a2b3d; --heat-1: #184f95; --heat-2: #2a78d6; --heat-3: #6da7ec; --heat-4: #cde2fb;
+  --focus: #8fb8f0;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 16px/1.5 "Barlow", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3, .cond { font-family: "Barlow Condensed", "Barlow", sans-serif; }
+a { color: var(--airspace); text-underline-offset: 2px; }
+a.cs { color: inherit; font-weight: 600; text-decoration-color: var(--rule); }
+a.cs:hover { color: var(--airspace); text-decoration-color: currentColor; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 600px) { .wrap { padding: 0 16px; } }
+
+/* Header: wordmark, receiver status, tabs */
+header { padding: 20px 0 0; }
+.top { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+.wordmark { font: 700 34px/1 "Barlow Condensed", sans-serif; letter-spacing: 0.01em; margin: 0; }
+.wordmark a { color: inherit; text-decoration: none; }
+.status { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 15px; }
+.status svg { flex: none; }
+.spacer { flex: 1; }
+.btn { font: 500 14px "Barlow", sans-serif; color: var(--ink-2); background: none; border: 1px solid var(--rule);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.btn:hover { color: var(--ink); border-color: var(--ink-3); }
+.btn[aria-pressed="true"] { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+nav[role="tablist"] { display: flex; gap: 4px; margin-top: 18px; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+nav a[role="tab"] { font: 600 20px/1 "Barlow Condensed", sans-serif; color: var(--ink-2); text-decoration: none;
+  padding: 10px 14px 12px; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+nav a[role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--airway); }
+
+main { padding: 28px 0 64px; }
+main > section[hidden] { display: none; }
+h2 { font-size: 26px; font-weight: 600; margin: 40px 0 4px; line-height: 1.1; }
+h2:first-child { margin-top: 0; }
+h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; line-height: 1.2; }
+.sub { color: var(--ink-2); margin: 0 0 14px; max-width: 70ch; font-size: 15px; }
+
+/* Compass roses */
+.hero { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr); gap: 40px; align-items: start; }
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 24px; } }
+.rose { width: 100%; height: auto; display: block; max-width: 720px; }
+.rose text { font-family: "Barlow Condensed", sans-serif; fill: var(--ink-3); }
+.rose .ring { fill: none; stroke: var(--rule); stroke-width: 1; }
+.rose .tick { stroke: var(--ink-3); }
+.rose .card-pt { fill: var(--ink); font-weight: 700; }
+.rose .ever { fill: url(#hatch); stroke: var(--airway); stroke-width: 2; stroke-linejoin: round; }
+.rose .ever.faint { fill: none; stroke-opacity: 0.45; stroke-width: 1.5; }
+.rose .today { fill: none; stroke: var(--airspace); stroke-width: 2; stroke-linejoin: round; }
+.rose .plane path { fill: var(--ink); stroke: var(--paper); stroke-width: 1.5; }
+.rose .plane text { fill: var(--ink); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--paper); stroke-width: 3px; }
+.rose .plane.alert path { fill: var(--critical); }
+.rose .plane.mil path { fill: var(--airway); }
+.rose .plane:hover path, .rose .plane:focus path { fill: var(--airspace); }
+.rose .plane { cursor: pointer; outline: none; }
+.rose .trail { fill: none; stroke: var(--ink-3); stroke-width: 1.2; stroke-opacity: 0.55; }
+.rose .rx { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.rose .track { fill: none; stroke: var(--airspace); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.rose .track-end { fill: var(--airspace); }
+.rose .closest { stroke: var(--airway); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.rose .closest-dot { fill: var(--airway); }
+.rose .band { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.key { display: flex; gap: 20px; flex-wrap: wrap; color: var(--ink-2); font-size: 14px; margin-top: 8px; }
+.key span { display: inline-flex; align-items: center; gap: 8px; }
+.swatch { width: 22px; height: 0; border-top: 2px solid; display: inline-block; }
+
+/* Replay */
+.replay { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 14px; align-items: center; margin: 10px 0 2px; max-width: 720px; }
+.replay input[type="range"] { width: 100%; accent-color: var(--airway); }
+.replay output { font: 600 17px "Barlow Condensed", sans-serif; min-width: 170px; text-align: right; }
+.replay .live-btn { grid-column: 3; justify-self: end; }
+.replay .hint { grid-column: 1 / -1; color: var(--ink-3); font-size: 13px; }
+
+.facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; align-items: baseline; }
+.facts dt { color: var(--ink-2); font-size: 15px; }
+.facts dd { margin: 0; font: 600 30px/1.15 "Barlow Condensed", sans-serif; }
+.facts dd small { font: 400 15px "Barlow", sans-serif; color: var(--ink-2); margin-left: 6px; }
+.notable { margin-top: 28px; }
+.notable ul, .timeline ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.notable li, .timeline li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--rule); }
+.notable li b, .timeline li b { font-weight: 600; }
+.notable li span, .timeline li span { color: var(--ink-2); font-size: 15px; }
+
+/* Charts and tables */
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 40px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.chart { min-height: 220px; }
+.uplot { font-family: "Barlow", sans-serif; }
+.stats-row { display: flex; gap: 40px; flex-wrap: wrap; margin: 4px 0 8px; }
+.stat-inline dt { color: var(--ink-2); font-size: 15px; }
+.stat-inline dd { margin: 0; font: 600 28px/1.15 "Barlow Condensed", sans-serif; }
+
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th { text-align: left; font-weight: 500; color: var(--ink-2); padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--rule); }
+td.num, th.num { text-align: right; }
+tr.current td { background: var(--paper-2); }
+.table-scroll { overflow-x: auto; }
+.search { font: 400 15px "Barlow", sans-serif; color: var(--ink); background: var(--paper-2); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 7px 10px; width: min(320px, 100%); margin-bottom: 10px; }
+.mil, a.cs.mil { color: var(--airway); }
+
+.stack, .bars { width: 100%; height: 220px; display: block; }
+.stack text, .bars text { font: 13px "Barlow", sans-serif; fill: var(--ink-3); }
+.stack .gl, .bars .gl { stroke: var(--rule); }
+.ckey { display: flex; gap: 16px; flex-wrap: wrap; color: var(--ink-2); font-size: 14px; margin-top: 6px; }
+.ckey span { display: inline-flex; align-items: center; gap: 6px; }
+.ckey i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.ckey i.ln { height: 0; width: 18px; border-top: 2px solid; border-radius: 0; }
+.heat { display: grid; grid-template-columns: 64px repeat(24, minmax(10px, 1fr)); gap: 2px; font-size: 13px; color: var(--ink-3); }
+.heat .cell { aspect-ratio: 1.6; border-radius: 2px; background: var(--heat-0); }
+.heat .lbl { align-self: center; color: var(--ink-2); }
+.heat .hr { text-align: center; }
+.heat-key { display: flex; gap: 6px; align-items: center; color: var(--ink-2); font-size: 13px; margin-top: 8px; }
+.heat-key i { width: 18px; height: 11px; border-radius: 2px; display: inline-block; }
+
+/* Flight page */
+.back { display: inline-block; margin-bottom: 14px; font-size: 15px; }
+.detail-head h2 { font-size: 44px; margin: 0; }
+.detail-head p { margin: 2px 0 20px; color: var(--ink-2); }
+
+/* Logbook */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 4px; }
+.timeline h3 { margin-top: 24px; }
+.timeline li .kind { color: var(--ink-3); font-size: 14px; }
+
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); padding: 8px 10px; border-radius: 6px;
+  font-size: 14px; line-height: 1.35; display: none; z-index: 10; max-width: 260px; }
+#tip b { font-family: "Barlow Condensed", sans-serif; font-size: 17px; }
+.proto { color: var(--ink-3); font-size: 13px; margin-top: 48px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="top">
+    <h1 class="wordmark"><a href="#now">skyledger</a></h1>
+    <span class="status" id="status"></span>
+    <span class="spacer"></span>
+    <a href="../" style="font-size:15px">About skyledger</a>
+    <button class="btn" id="themeBtn" type="button">Dark</button>
+  </div>
+  <nav role="tablist" aria-label="Views">
+    <a role="tab" href="#now" id="t-now" aria-controls="p-now">Now</a>
+    <a role="tab" href="#history" id="t-history" aria-controls="p-history">History</a>
+    <a role="tab" href="#logbook" id="t-logbook" aria-controls="p-logbook">Logbook</a>
+    <a role="tab" href="#receiver" id="t-receiver" aria-controls="p-receiver">Receiver</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <!-- NOW -->
+  <section role="tabpanel" id="p-now" aria-labelledby="t-now" hidden>
+    <div class="hero">
+      <div>
+        <svg class="rose" id="rose" viewBox="0 0 640 640" role="img" aria-label="Reception range by bearing, with aircraft in range"></svg>
+        <div class="replay">
+          <button class="btn" id="play" type="button">Play</button>
+          <input type="range" id="scrub" aria-label="Replay time, last 24 hours">
+          <output id="when" for="scrub">Live</output>
+          <span class="hint">Drag to replay the last 24 hours. Older days replay from history at one position a minute.</span>
+          <button class="btn live-btn" id="live" type="button" hidden>Back to live</button>
+        </div>
+        <div class="key">
+          <span><i class="swatch" style="border-color:var(--airway)"></i>Furthest ever, per degree</span>
+          <span><i class="swatch" style="border-color:var(--airspace)"></i>Furthest today</span>
+          <span>Rings every 50 nm, numbered along north</span>
+        </div>
+      </div>
+      <div>
+        <dl class="facts" id="facts"></dl>
+        <div class="notable">
+          <h3>Worth a look</h3>
+          <ul id="notable"></ul>
+        </div>
+      </div>
+    </div>
+
+    <h2>Traffic, last 24 hours</h2>
+    <p class="sub">The gap at 04:00 is a 25-minute ingest outage: skyledger shows it as a gap instead of drawing a line across it.</p>
+    <div class="grid2">
+      <div><h3>Aircraft tracked</h3><div class="chart" id="c-tracked"></div></div>
+      <div><h3>Aircraft by altitude, per hour</h3><svg class="stack" id="c-alt" role="img" aria-label="Average aircraft per hour, split by altitude band"></svg><div class="ckey" id="k-alt"></div></div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section role="tabpanel" id="p-history" aria-labelledby="t-history" hidden>
+    <h2>Flights</h2>
+    <p class="sub">Built nightly from the receiver's own history. A flight ends when an aircraft goes unheard for 30 minutes.</p>
+    <div class="grid2">
+      <div><h3>Flights per day, last 30 days</h3><div class="chart" id="c-fpd"></div></div>
+      <div>
+        <h3>Flights per hour, last 7 days</h3>
+        <div class="heat" id="heat" role="img" aria-label="Flights per hour for each of the last 7 days"></div>
+        <div class="heat-key" id="heatKey"></div>
+      </div>
+    </div>
+
+    <h2>Flight log</h2>
+    <input class="search" id="q" type="search" placeholder="Search callsign, registration, type or operator" aria-label="Search flights">
+    <div class="table-scroll"><table id="log"></table></div>
+
+    <div class="grid2" style="margin-top:40px">
+      <div><h3>Regulars</h3><p class="sub">Most flights in the last 30 days.</p><div class="table-scroll"><table id="regulars"></table></div></div>
+      <div><h3>Rare visitors</h3><p class="sub">Seen on no more than 3 days in the last 90.</p><div class="table-scroll"><table id="rare"></table></div></div>
+    </div>
+
+    <h2>Weather aloft</h2>
+    <p class="sub">From what aircraft above 20,000 ft report about the air around them.</p>
+    <div class="grid2">
+      <div><h3>Wind speed</h3><div class="chart" id="c-wind"></div></div>
+      <div><h3>Outside air temperature</h3><div class="chart" id="c-oat"></div></div>
+    </div>
+  </section>
+
+  <!-- LOGBOOK -->
+  <section role="tabpanel" id="p-logbook" aria-labelledby="t-logbook" hidden>
+    <h2>Your collection</h2>
+    <p class="sub">Everything this receiver has heard since its history starts, 699 days ago.</p>
+    <dl class="stats-row" id="collection"></dl>
+    <div class="grid2" style="margin-top:24px">
+      <div><h3>Newest types</h3><p class="sub">The last aircraft types heard here for the first time.</p><div class="table-scroll"><table id="newtypes"></table></div></div>
+      <div><h3>Most heard types</h3><p class="sub">Flights in the last 30 days.</p><svg class="bars" id="c-types" role="img" aria-label="Flights per aircraft type, last 30 days"></svg></div>
+    </div>
+
+    <h2>Logbook</h2>
+    <p class="sub">Moments worth remembering, newest first.</p>
+    <div class="filters" id="filters" role="group" aria-label="Show"></div>
+    <div class="timeline" id="timeline"></div>
+  </section>
+
+  <!-- RECEIVER -->
+  <section role="tabpanel" id="p-receiver" aria-labelledby="t-receiver" hidden>
+    <dl class="stats-row">
+      <div class="stat-inline"><dt>SDR gain</dt><dd>42.1 dB</dd></div>
+      <div class="stat-inline"><dt>Frequency error</dt><dd>&minus;1.5 ppm</dd></div>
+      <div class="stat-inline"><dt>Stats updated</dt><dd>12 s ago</dd></div>
+    </dl>
+    <h2>Signal, last 24 hours</h2>
+    <p class="sub">Signal is the average strength of decoded messages; noise is the floor. A shrinking gap between them means the antenna or gain needs attention.</p>
+    <div class="grid2">
+      <div><h3>Signal and noise</h3><div class="chart" id="c-sig"></div><div class="ckey" id="k-sig"></div></div>
+      <div><h3>Messages per second</h3><div class="chart" id="c-msg"></div></div>
+      <div><h3>Strong signals</h3><p class="sub">Share of messages above &minus;3 dBFS. Above about 5% the gain is too high.</p><div class="chart" id="c-strong"></div></div>
+      <div><h3>Aircraft with degraded GPS</h3><p class="sub">Aircraft reporting low position integrity. Many at once, across a region, is how GPS jamming shows up.</p><div class="chart" id="c-gps"></div></div>
+    </div>
+
+    <h2>Antenna</h2>
+    <p class="sub">From the last 30 days. Use these to place and tune the antenna.</p>
+    <div class="grid2">
+      <div>
+        <h3>Range by altitude</h3>
+        <p class="sub">Low aircraft drop below the horizon first, so the inner outline is your antenna's real line of sight.</p>
+        <svg class="rose" id="r-alt" viewBox="0 0 640 640" role="img" aria-label="Furthest reception per degree, for each altitude band" style="max-width:520px"></svg>
+        <div class="ckey" id="k-ralt"></div>
+      </div>
+      <div>
+        <h3>Signal strength by bearing</h3>
+        <p class="sub">Median signal from aircraft 100 to 150 nm away. A dip means something is in the way in that direction.</p>
+        <svg class="bars" id="r-rssi" role="img" aria-label="Median signal strength for each 10 degrees of bearing" style="height:260px"></svg>
+        <p class="sub" id="rssiNote" style="margin-top:10px"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLIGHT / AIRCRAFT PAGE -->
+  <section id="p-detail" hidden aria-live="polite"></section>
+
+  <p class="proto">A preview of the web UI planned for skyledger; today it ships with Grafana dashboards. Everything here is simulated: a made-up receiver in the North Atlantic and made-up aircraft and airlines, like skyledger's built-in demo. <a href="../">Back to skyledger</a>.</p>
+</main>
+<div id="tip" role="tooltip"></div>
+
+<script>
+// ================= fake data: one simulated sky =================
+const mulberry = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const hash = str => { let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+const rnd = mulberry(42);
+const pickR = (r, a) => a[Math.floor(r() * a.length)];
+const NOW = Math.floor(Date.now() / 1000);
+const DAY = 86400;
+const hourOf = t => { const d = new Date(t * 1000); return d.getHours() + d.getMinutes() / 60; };
+const diurnal = t => Math.max(0, Math.sin((hourOf(t) - 5) / 24 * 2 * Math.PI)) ** 0.8;
+const toEN = (brg, nm) => [nm * Math.sin(brg * Math.PI / 180), nm * Math.cos(brg * Math.PI / 180)];
+const fromEN = (e, n) => [(Math.atan2(e, n) * 180 / Math.PI + 360) % 360, Math.hypot(e, n)];
+
+// Reception outlines, per degree: longer over open water to the west and south.
+const ever = [], today = [];
+for (let d = 0; d < 360; d++) {
+  ever.push(Math.min(285, 205 + 45 * Math.cos((d - 250) * Math.PI / 180) + 18 * Math.sin(d * 5 * Math.PI / 180) + 10 * rnd()));
+  today.push(ever[d] * (0.72 + 0.12 * Math.sin(d * 3 * Math.PI / 180) + 0.06 * rnd()));
+}
+const furthestTodayDeg = today.indexOf(Math.max(...today)), furthestEverDeg = ever.indexOf(Math.max(...ever));
+
+const TYPES = { B77W: "Boeing 777-300ER", A359: "Airbus A350-900", B789: "Boeing 787-9", A333: "Airbus A330-300",
+  B763: "Boeing 767-300", A21N: "Airbus A321neo", B38M: "Boeing 737 MAX 8", A388: "Airbus A380-800", B772: "Boeing 777-200",
+  B748: "Boeing 747-8", C17: "Boeing C-17 Globemaster", C130: "Lockheed C-130 Hercules", C172: "Cessna 172", GLF6: "Gulfstream G650" };
+const AIRLINES = [["DMO", "Demo Air"], ["DMX", "Demo Express"], ["DMC", "Demo Cargo"], ["DML", "Demo Long Haul"],
+  ["DMR", "Demo Regional"], ["DMB", "Demo Blue"], ["DMN", "Demo North"], ["DMS", "Demo South"], ["DMW", "Demo West"], ["DME", "Demo East"]];
+const LETTERS = "ABCDEFGHJKLMNPRSTUVWXYZ";
+const reg = r => "DEMO-" + pickR(r, LETTERS) + pickR(r, LETTERS) + pickR(r, LETTERS);
+
+// Every callsign the receiver knows, with how often it visits (flights per day).
+const POOL = [];
+for (const [code, op] of AIRLINES) for (let k = 0; k < 7; k++) {
+  const r = mulberry(hash(code + k));
+  POOL.push({ callsign: code + (100 + Math.floor(r() * 899)), op, type: pickR(r, ["B77W", "A359", "B789", "A333", "B763", "A21N", "B38M"]),
+    reg: reg(r), hex: "de" + Math.floor(r() * 0xffff).toString(16).padStart(4, "0"), freq: k < 2 ? 0.85 + 0.15 * r() : k < 5 ? 0.15 + 0.3 * r() : 0.01 + 0.02 * r() });
+}
+const SPECIAL = {
+  DMO911: { callsign: "DMO911", op: "Demo Air", type: "B772", reg: "DEMO-11", hex: "de000b", freq: 0.6 },
+  RCH99: { callsign: "RCH99", op: "Demo Air Force", type: "C17", reg: "DEMO-10", hex: "de000a", freq: 0, mil: true, days: [NOW - 19 * DAY] },
+  DAF41: { callsign: "DAF41", op: "Demo Air Force", type: "C130", reg: "DEMO-41", hex: "de0029", freq: 0, mil: true, days: [NOW - 6 * DAY] },
+  DEMOX1: { callsign: "DEMOX1", op: "Private", type: "C172", reg: "DEMO-09", hex: "de0009", freq: 0.05, ga: true },
+  DEMOJ1: { callsign: "DEMOJ1", op: "Private", type: "GLF6", reg: "DEMO-J1", hex: "de00a1", freq: 0, days: [NOW - 9 * DAY - 5 * 3600] },
+  DML269: { callsign: "DML269", op: "Demo Long Haul", type: "A388", reg: "DEMO-80", hex: "de0050", freq: 0, days: [NOW - DAY - 3 * 3600] },
+};
+POOL.push(...Object.values(SPECIAL));
+const byCallsign = Object.fromEntries(POOL.map(p => [p.callsign, p]));
+
+// A flight: a straight crossing of the range, cruising, climbing or descending.
+function makeFlight(info, start, r, shape = {}) {
+  const ga = info.ga, b1 = shape.b1 ?? r() * 360, b2 = shape.b2 ?? (b1 + 180 + (r() - 0.5) * 120) % 360;
+  // Heard from the edge of today's reception (the blue outline), not beyond it.
+  const edge = b => ga ? 45 : today[Math.round(b) % 360] * (0.94 + 0.05 * r());
+  const p1 = toEN(b1, edge(b1)), p2 = toEN(b2, edge(b2));
+  const cruise = ga ? 2500 : info.mil ? 28000 : 31000 + Math.round(r() * 10) * 1000;
+  const prof = shape.profile ?? (ga ? "cruise" : r() < 0.2 ? "climb" : r() < 0.25 ? "descend" : "cruise");
+  const alt0 = prof === "climb" ? 9000 : cruise, alt1 = prof === "descend" ? 11000 : cruise;
+  const gs = ga ? 105 : info.mil ? 410 : 440 + Math.round(r() * 80);
+  const dist = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), dur = dist / gs * 3600;
+  const d = [p2[0] - p1[0], p2[1] - p1[1]], k = Math.min(1, Math.max(0, -(p1[0] * d[0] + p1[1] * d[1]) / (d[0] ** 2 + d[1] ** 2)));
+  const [cBrg, cDist] = fromEN(p1[0] + d[0] * k, p1[1] + d[1] * k);
+  return { info, start: Math.round(start), dur, p1, p2, alt0, alt1, gs, prof, squawk: shape.squawk,
+    track: (Math.atan2(d[0], d[1]) * 180 / Math.PI + 360) % 360, closest: { brg: cBrg, dist: cDist, frac: k } };
+}
+function pos(f, t) {
+  const frac = (t - f.start) / f.dur; if (frac < 0 || frac > 1) return null;
+  const e = f.p1[0] + (f.p2[0] - f.p1[0]) * frac, n = f.p1[1] + (f.p2[1] - f.p1[1]) * frac;
+  const [brg, dist] = fromEN(e, n);
+  return { brg, dist, e, n, alt: Math.round((f.alt0 + (f.alt1 - f.alt0) * Math.min(1, frac * 1.6)) / 100) * 100, gs: f.gs, track: f.track };
+}
+
+// The last 26 hours of traffic, busier by day.
+const weighted = POOL.filter(p => p.freq > 0 && !p.ga), totalFreq = weighted.reduce((a, p) => a + p.freq, 0);
+const pickWeighted = r => { let x = r() * totalFreq; for (const p of weighted) if ((x -= p.freq) <= 0) return p; return weighted[0]; };
+const MODEL = [];
+for (let t = NOW - DAY - 7200; t < NOW; t += 300) {
+  const lam = 0.15 + 2.2 * diurnal(t), n = Math.floor(lam + rnd());
+  for (let i = 0; i < n; i++) { const info = pickWeighted(rnd), s = t + rnd() * 300; MODEL.push(makeFlight(info, s, mulberry(hash(info.callsign) ^ s))); }
+}
+// The ones the page talks about, placed so they're in range now.
+const special = (cs, startAgo, shape) => { const f = makeFlight(byCallsign[cs], NOW - startAgo, mulberry(hash(cs)), shape); MODEL.push(f); return f; };
+const fEmergency = special("DMO911", 2300, { b1: 275, b2: 95, profile: "descend", squawk: "7700" });
+const fRCH = special("RCH99", 1400, { b1: 150, b2: 300 });
+const fGA = special("DEMOX1", 1500, { b1: 230, b2: 50 });
+MODEL.sort((a, b) => a.start - b.start);
+const active = t => MODEL.filter(f => pos(f, t));
+
+// Every visit of one aircraft: the simulated last day plus older days drawn from its own seed.
+function visitsOf(info) {
+  const v = MODEL.filter(f => f.info === info);
+  if (info.days) info.days.forEach((t, i) => v.push(makeFlight(info, t, mulberry(hash(info.callsign) + i))));
+  for (let d = 2; d <= 90; d++) {
+    const r = mulberry(hash(info.callsign) * 31 + d);
+    if (r() < info.freq) v.push(makeFlight(info, NOW - d * DAY + (6 + r() * 14) * 3600, r));
+  }
+  return v.sort((a, b) => b.start - a.start);
+}
+
+// Time series on 5-minute steps, derived from the simulated sky, with one outage at 04:00.
+const ts = [], tracked = [], alt = [[], [], [], []], sig = [], noise = [], msg = [], strong = [], gps = [];
+const bandOf = a => a < 10000 ? 0 : a < 25000 ? 1 : a < 35000 ? 2 : 3;
+for (let t = Math.floor((NOW - DAY) / 300) * 300; t <= NOW; t += 300) {
+  ts.push(t);
+  const m = hourOf(t) * 60, outage = m >= 240 && m < 265, v = x => outage ? null : x;
+  const here = active(t).map(f => pos(f, t)), counts = [0, 0, 0, 0];
+  here.forEach(p => counts[bandOf(p.alt)]++);
+  const extra = Math.round(2 * rnd()); // aircraft heard without a position
+  tracked.push(v(here.length + extra)); counts.forEach((c, i) => alt[i].push(v(c)));
+  const d = diurnal(t);
+  sig.push(v(-11.5 - 1.2 * rnd() + 0.8 * d)); noise.push(v(-31.2 - 0.6 * rnd()));
+  msg.push(v(Math.round(250 + 60 * here.length + 80 * rnd()))); strong.push(v(+(1 + 2.5 * d + rnd() * 0.6).toFixed(2)));
+  gps.push(v(Math.abs(t - (NOW - 7 * 3600)) < 2400 ? 6 + Math.round(4 * rnd()) : (rnd() < 0.12 ? 1 : 0)));
+}
+const days = [], fpd = [];
+for (let i = 29; i >= 0; i--) {
+  const t = NOW - i * DAY, wd = new Date(t * 1000).getDay(); days.push(t);
+  fpd.push(i === 0 ? MODEL.filter(f => f.start > NOW - DAY).length : Math.round(310 + (wd === 0 || wd === 6 ? -45 : 15) + 30 * rnd()));
+}
+
+// ================= helpers =================
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmtTime = t => new Date(t * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const fmtDay = t => new Date(t * 1000).toLocaleDateString([], { weekday: "short", day: "numeric" });
+const fmtDate = t => new Date(t * 1000).toLocaleDateString([], { day: "numeric", month: "long" });
+const deg3 = d => String(Math.round(d) % 360).padStart(3, "0") + "°";
+const ft = a => a.toLocaleString() + " ft";
+const mins = s => Math.round(s / 60) + " min";
+const sameDay = (a, b) => new Date(a * 1000).toDateString() === new Date(b * 1000).toDateString();
+const dayName = t => sameDay(t, NOW) ? "Today" : sameDay(t, NOW - DAY) ? "Yesterday"
+  : fmtDay(t) + " " + new Date(t * 1000).toLocaleDateString([], { month: "short" });
+const svgEl = (tag, attrs = {}, text) => { const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const flightHref = f => `#a/${encodeURIComponent(f.info.callsign)}/${f.start}`;
+const csLink = f => `<a class="cs${f.info.mil ? " mil" : ""}" href="${flightHref(f)}">${esc(f.info.callsign)}</a>`;
+const ICONS = {
+  good: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="var(--good)"/><path d="M4.5 8.2l2.2 2.2 4.8-4.8" stroke="#fff" stroke-width="2" fill="none"/></svg>',
+  critical: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1l7 13H1z" fill="var(--critical)"/><path d="M8 6v4M8 11.6v.6" stroke="#fff" stroke-width="1.8"/></svg>',
+  warning: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1l7 13H1z" fill="var(--warning)"/><path d="M8 6v4M8 11.6v.6" stroke="#17222d" stroke-width="1.8"/></svg>',
+  info: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="var(--ink-2)" stroke-width="1.5"/><path d="M8 7v4.5M8 4.6v.6" stroke="var(--ink-2)" stroke-width="1.6"/></svg>',
+  star: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5l1.9 4.1 4.4.5-3.3 3 .9 4.4L8 11.3l-3.9 2.2.9-4.4-3.3-3 4.4-.5z" fill="none" stroke="var(--ink-2)" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  record: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--ink-2)" stroke-width="1.4"/><circle cx="8" cy="8" r="2" fill="var(--ink-2)"/><path d="M8 1.5v3" stroke="var(--ink-2)" stroke-width="1.4"/></svg>',
+};
+const tip = document.getElementById("tip");
+const showTip = (html, x, y) => { tip.innerHTML = html; tip.style.display = "block";
+  const r = tip.getBoundingClientRect(); tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + "px";
+  tip.style.top = Math.min(y + 14, innerHeight - r.height - 8) + "px"; };
+const hideTip = () => { tip.style.display = "none"; };
+document.getElementById("status").innerHTML = ICONS.good + "<span>Demo receiver live, last position 3 s ago</span>";
+
+// ================= compass roses =================
+const R = 280, C = 320, MAXNM = 300;
+const xy = (brg, nm) => { const a = (brg - 90) * Math.PI / 180, r = nm / MAXNM * R; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+const outline = arr => arr.map((nm, d) => xy(d, nm).map(v => v.toFixed(1)).join(",")).join(" ");
+function roseBase(svg, { ever: showEver = "full", today: showToday = true } = {}) {
+  svg.innerHTML = "";
+  const defs = svgEl("defs"), pat = svgEl("pattern", { id: svg.id + "-hatch", width: 7, height: 7, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
+  pat.append(svgEl("line", { x1: 0, y1: 0, x2: 0, y2: 7, stroke: css("--airway"), "stroke-width": 1.2, "stroke-opacity": 0.35 }));
+  defs.append(pat); svg.append(defs);
+  for (let nm = 50; nm <= 250; nm += 50) {
+    svg.append(svgEl("circle", { class: "ring", cx: C, cy: C, r: nm / MAXNM * R }));
+    const [x, y] = xy(0, nm); svg.append(svgEl("text", { x: x + 4, y: y + 13, "font-size": 12 }, nm));
+  }
+  svg.append(svgEl("circle", { class: "ring", cx: C, cy: C, r: R }));
+  for (let d = 0; d < 360; d += 5) {
+    const len = d % 30 === 0 ? 14 : d % 10 === 0 ? 9 : 5, a = (d - 90) * Math.PI / 180;
+    const [x1, y1] = xy(d, MAXNM);
+    svg.append(svgEl("line", { class: "tick", x1, y1, x2: C + (R - len) * Math.cos(a), y2: C + (R - len) * Math.sin(a), "stroke-width": d % 30 === 0 ? 1.6 : 1 }));
+    if (d % 30 === 0) {
+      const label = { 0: "N", 90: "E", 180: "S", 270: "W" }[d] ?? String(d).padStart(3, "0");
+      svg.append(svgEl("text", { x: C + (R + 18) * Math.cos(a), y: C + (R + 18) * Math.sin(a) + 5, "text-anchor": "middle",
+        "font-size": label.length === 1 ? 19 : 14, class: label.length === 1 ? "card-pt" : "" }, label));
+    }
+  }
+  if (showEver) { const p = svgEl("polygon", { class: "ever" + (showEver === "faint" ? " faint" : ""), points: outline(ever) });
+    if (showEver === "full") p.setAttribute("fill", `url(#${svg.id}-hatch)`); svg.append(p); }
+  if (showToday) svg.append(svgEl("polygon", { class: "today", points: outline(today) }));
+  const g = svgEl("g"); svg.append(g);
+  svg.append(svgEl("circle", { class: "rx", cx: C, cy: C, r: 5 }));
+  return g;
+}
+
+// Main rose: aircraft at time t, with 5-minute trails. replayT null means live.
+let replayT = null, overlay;
+const planeTip = (f, p) => `<b>${esc(f.info.callsign)}</b><br>${esc(f.info.op)}, ${f.info.type}${f.info.mil ? " (military)" : ""}<br>${ft(p.alt)}, ${p.gs} kt` +
+  `<br>${Math.round(p.dist)} nm at ${deg3(p.brg)}${f.squawk ? `<br>Squawking ${f.squawk} (emergency)` : ""}<br>Select for its flight page`;
+function drawPlanes(t) {
+  overlay.innerHTML = "";
+  const here = active(t);
+  for (const f of here) {
+    const trail = []; for (let s = Math.max(f.start, t - 300); s <= t; s += 30) { const q = pos(f, s); if (q) trail.push(xy(q.brg, q.dist).map(v => v.toFixed(1)).join(",")); }
+    if (trail.length > 1) overlay.append(svgEl("polyline", { class: "trail", points: trail.join(" ") }));
+  }
+  for (const f of here) {
+    const p = pos(f, t), [x, y] = xy(p.brg, p.dist);
+    const a = svgEl("a", { href: flightHref(f), class: "plane" + (f.squawk ? " alert" : f.info.mil ? " mil" : ""),
+      transform: `translate(${x.toFixed(1)},${y.toFixed(1)})`, "aria-label": `${f.info.callsign}, ${ft(p.alt)}, ${Math.round(p.dist)} nm at ${deg3(p.brg)}` });
+    a.append(svgEl("path", { d: "M0,-8 L5.5,6 L0,3 L-5.5,6 Z", transform: `rotate(${p.track.toFixed(0)})` }));
+    a.append(svgEl("text", { x: 9, y: 4 }, f.info.callsign));
+    a.addEventListener("mousemove", e => showTip(planeTip(f, pos(f, replayT ?? Date.now() / 1000) || p), e.clientX, e.clientY));
+    a.addEventListener("mouseleave", hideTip);
+    a.addEventListener("focus", () => { const r = a.getBoundingClientRect(); showTip(planeTip(f, p), r.right, r.top); });
+    a.addEventListener("blur", hideTip);
+    overlay.append(a);
+  }
+  return here.length;
+}
+function drawMainRose() { overlay = roseBase(document.getElementById("rose")); renderReplay(); }
+
+// Replay controls.
+const scrub = document.getElementById("scrub"), when = document.getElementById("when"), playBtn = document.getElementById("play"), liveBtn = document.getElementById("live");
+scrub.min = NOW - DAY; scrub.max = NOW; scrub.step = 10; scrub.value = NOW;
+let playing = null;
+function renderReplay() {
+  const t = replayT ?? Date.now() / 1000, n = drawPlanes(t);
+  when.textContent = replayT == null ? `Live, ${n} aircraft` : `${fmtDay(t)} ${fmtTime(t)}, ${n} aircraft`;
+  liveBtn.hidden = replayT == null;
+  if (replayT != null) scrub.value = replayT;
+}
+function goLive() { replayT = null; stopPlay(); scrub.value = NOW; renderReplay(); }
+function stopPlay() { clearInterval(playing); playing = null; playBtn.textContent = "Play"; playBtn.setAttribute("aria-pressed", "false"); }
+scrub.addEventListener("input", () => { replayT = +scrub.value; if (replayT >= NOW - 10) return goLive(); renderReplay(); });
+liveBtn.addEventListener("click", goLive);
+playBtn.addEventListener("click", () => {
+  if (playing) return stopPlay();
+  if (replayT == null) replayT = NOW - DAY;
+  playBtn.textContent = "Pause"; playBtn.setAttribute("aria-pressed", "true");
+  playing = setInterval(() => { replayT += 60; if (replayT >= NOW) return goLive(); renderReplay(); }, 100); // 10 minutes a second
+});
+setInterval(() => { if (replayT == null && !document.getElementById("p-now").hidden) renderReplay(); }, 2000);
+
+// Facts and notable list.
+function renderFacts() {
+  const n = active(NOW).length, recordDay = NOW - 3 * DAY;
+  document.getElementById("facts").innerHTML = `
+    <dt>Aircraft now</dt><dd>${n + 3}<small>${n} with a position</small></dd>
+    <dt>Furthest today</dt><dd>${Math.round(today[furthestTodayDeg])} nm<small>at ${deg3(furthestTodayDeg)}</small></dd>
+    <dt>Furthest ever</dt><dd>${Math.round(ever[furthestEverDeg])} nm<small>at ${deg3(furthestEverDeg)}, ${fmtDate(recordDay)}</small></dd>
+    <dt>Flights today</dt><dd>${fpd.at(-1)}<small>${fpd.at(-1) - fpd.at(-2) >= 0 ? "+" : ""}${fpd.at(-1) - fpd.at(-2)} on yesterday</small></dd>`;
+  const pb = pos(fEmergency, NOW), pr = pos(fRCH, NOW), pg = pos(fGA, NOW);
+  document.getElementById("notable").innerHTML = `
+    <li>${ICONS.critical}<div><b>${csLink(fEmergency)} is squawking 7700</b><br><span>General emergency, ${Math.round(pb.dist)} nm at ${deg3(pb.brg)}, descending through ${ft(pb.alt)}</span></div></li>
+    <li>${ICONS.info}<div><b>${csLink(fRCH)}, a military C-17</b><br><span>${Math.round(pr.dist)} nm at ${deg3(pr.brg)}, ${ft(pr.alt)}. Last heard here 19 days ago</span></div></li>
+    <li>${ICONS.info}<div><b>${csLink(fGA)} is the lowest airborne aircraft</b><br><span>${ft(pg.alt)}, ${Math.round(pg.dist)} nm at ${deg3(pg.brg)}</span></div></li>`;
+}
+
+// ================= charts =================
+const charts = [];
+function chart(id, series, data, opts = {}) {
+  const host = document.getElementById(id), xFmt = opts.xValue || ((u, v) => fmtTime(v));
+  const axis = { stroke: css("--ink-3"), grid: { stroke: css("--rule"), width: 1 }, ticks: { stroke: css("--rule"), width: 1 }, font: "13px Barlow, sans-serif" };
+  const u = new uPlot({
+    width: host.clientWidth || 500, height: opts.height || 220, legend: { show: false },
+    cursor: { points: { size: 8 }, drag: { x: false, y: false } },
+    scales: { x: { time: true }, y: opts.y || {} },
+    axes: [{ ...axis, values: (u, sp) => sp.map(v => xFmt(u, v)) }, { ...axis, size: 52 }],
+    series: [{}, ...series],
+    hooks: { setCursor: [u => {
+      const i = u.cursor.idx; if (i == null || u.cursor.left < 0) return hideTip();
+      const r = u.over.getBoundingClientRect();
+      const rows = u.series.slice(1).map((s, k) => `${u.series.length > 2 ? s.label + ": " : ""}${s.value(u, u.data[k + 1][i])}`);
+      showTip(`<b>${xFmt(u, u.data[0][i])}</b><br>${rows.join("<br>")}`, r.left + u.cursor.left, r.top + u.cursor.top);
+    }] },
+  }, data, host);
+  u.over.addEventListener("mouseleave", hideTip);
+  charts.push({ u, host, group: opts.group || "main" }); return u;
+}
+const line = (label, color, unit = "") => ({ label, stroke: css(color), width: 2, spanGaps: false, points: { show: false },
+  value: (u, v) => v == null ? "no data" : (Math.round(v * 10) / 10).toLocaleString() + unit });
+const destroyCharts = group => { for (let i = charts.length - 1; i >= 0; i--) if (charts[i].group === group) { charts[i].u.destroy(); charts.splice(i, 1); } };
+const resizeCharts = () => charts.forEach(c => c.host.clientWidth && c.u.setSize({ width: c.host.clientWidth, height: c.u.height }));
+
+function buildCharts() {
+  destroyCharts("main");
+  chart("c-tracked", [line("Aircraft", "--airspace")], [ts, tracked]);
+  chart("c-sig", [line("Signal", "--airspace", " dBFS"), line("Noise", "--airway", " dBFS")], [ts, sig, noise]);
+  document.getElementById("k-sig").innerHTML = `<span><i class="ln" style="border-color:var(--airspace)"></i>Signal</span><span><i class="ln" style="border-color:var(--airway)"></i>Noise</span>`;
+  chart("c-msg", [line("Messages per second", "--airspace")], [ts, msg]);
+  chart("c-strong", [line("Strong signals", "--airspace", "%")], [ts, strong]);
+  chart("c-gps", [line("Aircraft", "--airway")], [ts, gps]);
+  chart("c-fpd", [{ label: "Flights", fill: css("--airspace"), stroke: css("--airspace"), width: 0, value: (u, v) => v + " flights",
+      paths: uPlot.paths.bars({ size: [0.7, 24], radius: 0.2 }), points: { show: false } }],
+    [days, fpd], { xValue: (u, v) => fmtDay(v), y: { range: (u, mn, mx) => [0, mx * 1.1] } });
+  const wt = ts.filter((_, i) => i % 3 === 0);
+  chart("c-wind", [line("Wind speed", "--airspace", " kt")], [wt, wt.map(t => 70 + 25 * Math.sin(t / 20000) + 8 * rnd())]);
+  chart("c-oat", [line("Temperature", "--airway", " °C")], [wt, wt.map(t => -52 + 3 * Math.sin(t / 30000) + rnd())]);
+}
+
+// Stacked bars: aircraft per clock hour, by altitude band.
+const BANDS = [["Under 10,000 ft", "--alt-1"], ["10,000 to 25,000 ft", "--alt-2"], ["25,000 to 35,000 ft", "--alt-3"], ["Above 35,000 ft", "--alt-4"]];
+function drawStack() {
+  const svg = document.getElementById("c-alt"), W = svg.clientWidth || 500, H = 220, L = 34, B = 24, T = 8;
+  if (!svg.clientWidth) return;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.innerHTML = "";
+  const h0 = Math.floor(NOW / 3600) * 3600 - 23 * 3600, hours = [];
+  for (let k = 0; k < 24; k++) {
+    const idx = ts.map((t, i) => [t, i]).filter(([t]) => t >= h0 + k * 3600 && t < h0 + (k + 1) * 3600).map(([, i]) => i);
+    const mean = b => { const v = idx.map(i => alt[b][i]).filter(x => x != null); return v.length ? v.reduce((a, c) => a + c, 0) / v.length : 0; };
+    hours.push({ t: h0 + k * 3600, v: [0, 1, 2, 3].map(mean) });
+  }
+  const max = Math.ceil(Math.max(...hours.map(h => h.v.reduce((a, b) => a + b, 0))) / 5) * 5 || 5;
+  const y = v => H - B - (v / max) * (H - B - T), bw = (W - L) / 24;
+  for (let g = 0; g <= max; g += 10) { svg.append(svgEl("line", { class: "gl", x1: L, x2: W, y1: y(g), y2: y(g) })); svg.append(svgEl("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end" }, g)); }
+  hours.forEach((h, k) => {
+    const x = L + k * bw + 2, w = Math.max(2, bw - 4), g = svgEl("g"); let base = 0;
+    h.v.forEach((v, b) => { if (v <= 0) return; const top = y(base + v), bot = y(base);
+      g.append(svgEl("rect", { x, y: top, width: w, height: Math.max(0, bot - top - 2), fill: css(BANDS[b][1]), rx: 1.5 })); base += v; });
+    g.append(svgEl("rect", { x: L + k * bw, y: T, width: bw, height: H - B - T, fill: "transparent" }));
+    g.addEventListener("mousemove", e => showTip(`<b>${fmtTime(h.t)} to ${fmtTime(h.t + 3600)}</b><br>` + h.v.map((v, b) => `${BANDS[b][0]}: ${v.toFixed(1)}`).reverse().join("<br>"), e.clientX, e.clientY));
+    g.addEventListener("mouseleave", hideTip); svg.append(g);
+    if (new Date(h.t * 1000).getHours() % 4 === 0) svg.append(svgEl("text", { x: x + w / 2, y: H - 6, "text-anchor": "middle" }, fmtTime(h.t)));
+  });
+  document.getElementById("k-alt").innerHTML = BANDS.map(([n, c]) => `<span><i style="background:var(${c})"></i>${n}</span>`).join("");
+}
+
+// Simple vertical bars with category labels (types, bearings).
+function drawBars(id, items, { color = "--airspace", label = v => v, base = 0, height = 220, rotate = false } = {}) {
+  const svg = document.getElementById(id), W = svg.clientWidth, H = height, L = 40, B = rotate ? 40 : 24, T = 8;
+  if (!W) return;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.innerHTML = "";
+  const vals = items.map(i => i.v), lo = Math.min(base, ...vals), hi = Math.max(...vals);
+  const span = hi - lo || 1, y = v => H - B - ((v - lo) / span) * (H - B - T), bw = (W - L) / items.length;
+  const raw = span / 5, mag = 10 ** Math.floor(Math.log10(raw)), step = [1, 2, 5, 10].map(m => m * mag).find(s => s >= raw);
+  for (let g = Math.ceil(lo / step) * step; g <= hi; g += step) { svg.append(svgEl("line", { class: "gl", x1: L, x2: W, y1: y(g), y2: y(g) })); svg.append(svgEl("text", { x: L - 6, y: y(g) + 4, "text-anchor": "end" }, g)); }
+  items.forEach((it, k) => {
+    const x = L + k * bw + 1.5, w = Math.max(2, bw - 3), top = y(it.v), g = svgEl("g");
+    g.append(svgEl("rect", { x, y: top, width: w, height: Math.max(1, y(lo) - top), fill: css(it.color || color), rx: 2 }));
+    g.append(svgEl("rect", { x: L + k * bw, y: T, width: bw, height: H - B - T, fill: "transparent" }));
+    g.addEventListener("mousemove", e => showTip(it.tip, e.clientX, e.clientY)); g.addEventListener("mouseleave", hideTip);
+    svg.append(g);
+    if (it.label) svg.append(svgEl("text", rotate ? { x: x + w / 2, y: H - B + 14, "text-anchor": "middle", "font-size": 12 } : { x: x + w / 2, y: H - 6, "text-anchor": "middle" }, it.label));
+  });
+}
+
+// ================= History tab =================
+function buildHeat() {
+  const h = document.getElementById("heat"); h.innerHTML = "<span></span>";
+  for (let hr = 0; hr < 24; hr++) h.insertAdjacentHTML("beforeend", `<span class="hr">${hr % 6 === 0 ? hr : ""}</span>`);
+  const steps = ["--heat-0", "--heat-1", "--heat-2", "--heat-3", "--heat-4"], r = mulberry(7);
+  for (let i = 6; i >= 0; i--) {
+    const day = NOW - i * DAY;
+    h.insertAdjacentHTML("beforeend", `<span class="lbl">${i === 0 ? "Today" : fmtDay(day)}</span>`);
+    for (let hr = 0; hr < 24; hr++) {
+      const n = i === 0 && hr > new Date().getHours() ? null : Math.round(26 * Math.max(0, Math.sin((hr - 5) / 24 * 2 * Math.PI)) ** 0.8 + 3 * r());
+      const cell = document.createElement("span"); cell.className = "cell";
+      if (n != null) { cell.style.background = `var(${steps[Math.min(4, Math.ceil(n / 7))]})`;
+        cell.addEventListener("mousemove", e => showTip(`<b>${n} flights</b><br>${i === 0 ? "Today" : fmtDay(day)}, ${hr}:00 to ${hr + 1}:00`, e.clientX, e.clientY));
+        cell.addEventListener("mouseleave", hideTip);
+      } else cell.style.background = "transparent";
+      h.append(cell);
+    }
+  }
+  document.getElementById("heatKey").innerHTML = "Fewer " + steps.map(s => `<i style="background:var(${s})"></i>`).join("") + " More";
+}
+const LOG = MODEL.filter(f => f.start > NOW - DAY && f.start < NOW).sort((a, b) => b.start - a.start);
+function renderLog(q = "") {
+  q = q.trim().toLowerCase();
+  const rows = LOG.filter(f => !q || [f.info.callsign, f.info.type, f.info.op, f.info.reg, TYPES[f.info.type]].some(s => s.toLowerCase().includes(q))).slice(0, 15);
+  document.getElementById("log").innerHTML = `<thead><tr><th>First heard</th><th>Callsign</th><th>Operator</th><th>Type</th>
+    <th class="num">Closest</th><th class="num">Highest</th><th class="num">Heard for</th></tr></thead><tbody>` +
+    (rows.length ? rows.map(f => `<tr><td>${fmtDay(f.start)} ${fmtTime(f.start)}</td><td>${csLink(f)}</td><td>${esc(f.info.op)}</td>
+      <td>${f.info.type}</td><td class="num">${Math.round(f.closest.dist)} nm</td><td class="num">${ft(Math.max(f.alt0, f.alt1))}</td>
+      <td class="num">${f.start + f.dur > NOW ? "in range now" : mins(f.dur)}</td></tr>`).join("")
+      : `<tr><td colspan="7">No flights match "${esc(q)}" in the last 24 hours. Try a callsign like DMO or a type like A359.</td></tr>`) + "</tbody>";
+}
+document.getElementById("q").addEventListener("input", e => renderLog(e.target.value));
+const VISITS = Object.fromEntries(POOL.map(p => [p.callsign, visitsOf(p)]));
+function renderRegularsRare() {
+  const regs = POOL.map(p => ({ p, n: VISITS[p.callsign].filter(f => f.start > NOW - 30 * DAY).length })).sort((a, b) => b.n - a.n).slice(0, 7);
+  document.getElementById("regulars").innerHTML = "<thead><tr><th>Callsign</th><th>Operator</th><th class='num'>Flights</th><th>Last heard</th></tr></thead><tbody>" +
+    regs.map(({ p, n }) => { const last = VISITS[p.callsign][0];
+      return `<tr><td>${csLink(last)}</td><td>${esc(p.op)}</td><td class="num">${n}</td><td>${dayName(last.start)}</td></tr>`; }).join("") + "</tbody>";
+  const dayCount = p => new Set(VISITS[p.callsign].map(f => new Date(f.start * 1000).toDateString())).size;
+  const rare = POOL.filter(p => VISITS[p.callsign].length && dayCount(p) <= 3).sort((a, b) => VISITS[b.callsign][0].start - VISITS[a.callsign][0].start).slice(0, 6);
+  document.getElementById("rare").innerHTML = "<thead><tr><th>Aircraft</th><th>Type</th><th class='num'>Days seen</th><th>Last heard</th></tr></thead><tbody>" +
+    rare.map(p => { const last = VISITS[p.callsign][0];
+      return `<tr><td>${csLink(last)}${p.mil ? " <span class='mil'>(military)</span>" : ""}</td><td>${p.type}</td><td class="num">${dayCount(p)}</td><td>${dayName(last.start)}</td></tr>`; }).join("") + "</tbody>";
+}
+
+// ================= Logbook tab =================
+const lastVisit = cs => VISITS[cs][0];
+const a388 = lastVisit("DML269");
+const EVENTS = [
+  { t: NOW - 25 * 60, kind: "Emergencies", icon: "critical", title: f => `${csLink(fEmergency)} squawked 7700`, text: "General emergency, descending from 31,000 ft west of the receiver" },
+  { t: fRCH.start, kind: "Military", icon: "info", title: () => `${csLink(fRCH)}, a Boeing C-17 Globemaster`, text: "Demo Air Force. Its second visit in 90 days" },
+  { t: NOW - 7 * 3600, kind: "Receiver", icon: "warning", title: () => "GPS interference", text: "Up to 10 aircraft reported degraded GPS for 40 minutes, mostly to the south-east" },
+  { t: new Date(NOW * 1000).setHours(4, 0, 0, 0) / 1000, kind: "Receiver", icon: "warning", title: () => "Ingest outage, 25 minutes", text: "Live positions stopped; the gap was filled from the receiver's own history" },
+  ...(a388 ? [{ t: NOW - DAY - 3 * 3600, kind: "New types", icon: "star", title: () => `First ${TYPES.A388}`, text: `Heard as ${a388.info.callsign}, 238 nm out at 39,000 ft`, href: flightHref(a388) }] : []),
+  { t: NOW - 3 * DAY, kind: "Records", icon: "record", title: () => `New furthest reach: ${Math.round(ever[furthestEverDeg])} nm at ${deg3(furthestEverDeg)}`, text: "6 nm further than the old record, from an aircraft at 41,000 ft" },
+  { t: NOW - 6 * DAY, kind: "Military", icon: "info", title: () => `${csLink(lastVisit("DAF41"))}, a Lockheed C-130 Hercules`, text: "Demo Air Force. First visit" },
+  { t: NOW - 9 * DAY, kind: "New types", icon: "star", title: () => `First ${TYPES.GLF6}`, text: "DEMOJ1, a private business jet at 45,000 ft", href: flightHref(lastVisit("DEMOJ1")) },
+  { t: NOW - 12 * DAY, kind: "Emergencies", icon: "critical", title: () => "DMX452 squawked 7600", text: "Radio failure, cleared after 12 minutes" },
+  { t: NOW - 13 * DAY, kind: "Records", icon: "record", title: () => "New furthest reach: 269 nm at 241°", text: "The first time past 265 nm" },
+].sort((a, b) => b.t - a.t);
+let filter = "All";
+function renderLogbook() {
+  const stats = [["Aircraft heard", "18,402"], ["Types", "214"], ["Airlines", "61"], ["Military aircraft", "37"], ["Flights", "96,117"]];
+  document.getElementById("collection").innerHTML = stats.map(([k, v]) => `<div class="stat-inline"><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+  const newest = [["A388", 1], ["GLF6", 9], ["B748", 23], ["C130", 6]].sort((a, b) => a[1] - b[1]);
+  document.getElementById("newtypes").innerHTML = "<thead><tr><th>Type</th><th>First heard</th></tr></thead><tbody>" +
+    newest.map(([c, d]) => `<tr><td>${TYPES[c]} <span style="color:var(--ink-3)">${c}</span></td><td>${d === 1 ? "Yesterday" : fmtDate(NOW - d * DAY)}</td></tr>`).join("") + "</tbody>";
+  const kinds = ["All", ...new Set(EVENTS.map(e => e.kind))];
+  document.getElementById("filters").innerHTML = kinds.map(k => `<button class="btn" type="button" aria-pressed="${k === filter}">${k}</button>`).join("");
+  document.querySelectorAll("#filters button").forEach(b => b.addEventListener("click", () => { filter = b.textContent; renderLogbook(); }));
+  const shown = EVENTS.filter(e => filter === "All" || e.kind === filter), groups = {};
+  shown.forEach(e => (groups[dayName(e.t)] ??= []).push(e));
+  document.getElementById("timeline").innerHTML = Object.entries(groups).map(([d, es]) => `<h3>${d}</h3><ul>` + es.map(e =>
+    `<li>${ICONS[e.icon]}<div><b>${e.title()}</b> <span class="kind">${fmtTime(e.t)}</span><br><span>${e.text}${e.href ? ` <a href="${e.href}">Flight page</a>` : ""}</span></div></li>`).join("") + "</ul>").join("");
+}
+function drawTypes() {
+  const counts = {}; Object.values(VISITS).flat().filter(f => f.start > NOW - 30 * DAY).forEach(f => counts[f.info.type] = (counts[f.info.type] || 0) + 1);
+  const items = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([c, n]) => ({ v: n, label: c, tip: `<b>${TYPES[c]}</b><br>${n} flights` }));
+  drawBars("c-types", items);
+}
+
+// ================= Receiver tab: antenna =================
+function drawAntenna() {
+  const g = roseBase(document.getElementById("r-alt"), { ever: false, today: false }), mx = Math.max(...ever);
+  [5000, 17000, 30000, 40000].forEach((h, b) => {
+    const horizon = 1.23 * Math.sqrt(h); // nm to the radio horizon from altitude h feet
+    const pts = ever.map(nm => Math.min(nm, horizon * (0.9 + 0.2 * nm / mx)));
+    g.append(svgEl("polygon", { class: "band", stroke: css(BANDS[b][1]), points: outline(pts) }));
+  });
+  document.getElementById("k-ralt").innerHTML = BANDS.map(([n, c]) => `<span><i class="ln" style="border-color:var(${c})"></i>${n}</span>`).join("");
+  const r = mulberry(99), items = [];
+  for (let d = 0; d < 360; d += 10) {
+    const dip = d >= 30 && d <= 70 ? 5.5 * Math.sin((d - 30) / 40 * Math.PI) : 0, v = +(-21 - dip - r() * 1.2).toFixed(1);
+    items.push({ v, label: d % 30 === 0 ? String(d).padStart(3, "0") : "", tip: `<b>${deg3(d)} to ${deg3(d + 10)}</b><br>Median ${v} dBFS`, color: dip > 2 ? "--airway" : "--airspace" });
+  }
+  drawBars("r-rssi", items, { base: -30, height: 260 });
+  document.getElementById("rssiNote").innerHTML = "Signal is about 5 dB weaker between 030° and 070° (bars in magenta). Something to the north-east, like a roof, chimney or tree, may be in the antenna's way.";
+}
+
+// ================= flight / aircraft page =================
+let lastTab = "now";
+function renderDetail(cs, start) {
+  const info = byCallsign[cs]; const sec = document.getElementById("p-detail");
+  destroyCharts("detail");
+  if (!info) { sec.innerHTML = `<a class="back" href="#${lastTab}">Back</a><h2>No aircraft called ${esc(cs)}</h2><p class="sub">It may not have been heard yet. Search the flight log for a callsign, registration or type.</p>`; return; }
+  const visits = VISITS[cs], f = visits.find(v => v.start === +start) || visits[0];
+  if (!f) { sec.innerHTML = `<a class="back" href="#${lastTab}">Back</a><h2>${esc(cs)}</h2><p class="sub">Not heard in the last 90 days.</p>`; return; }
+  const live = f.start + f.dur > NOW;
+  const end = Math.min(NOW, f.start + f.dur), samples = [];
+  for (let t = f.start; t <= end; t += 30) samples.push([t, pos(f, t)]);
+  const c = f.closest, top = Math.max(f.alt0, f.alt1);
+  sec.innerHTML = `
+    <a class="back" href="#${lastTab}">Back to ${lastTab[0].toUpperCase() + lastTab.slice(1)}</a>
+    <div class="detail-head"><h2>${esc(cs)}</h2>
+      <p>${esc(info.op)}, ${TYPES[info.type]} (${info.type}), registration ${info.reg}, address ${info.hex}${info.mil ? ", military" : ""}${f.squawk ? `. Squawking ${f.squawk}` : ""}</p></div>
+    <div class="hero">
+      <div><svg class="rose" id="d-rose" viewBox="0 0 640 640" role="img" aria-label="Track of this flight over the reception area"></svg>
+        <div class="key"><span><i class="swatch" style="border-color:var(--airspace)"></i>Track</span><span><i class="swatch" style="border-color:var(--airway);border-top-style:dashed"></i>Closest approach</span></div></div>
+      <div>
+        <dl class="facts">
+          <dt>First heard</dt><dd>${fmtTime(f.start)}<small>${dayName(f.start)}</small></dd>
+          <dt>Heard for</dt><dd>${mins(end - f.start)}<small>${live ? "still in range" : "then out of range"}</small></dd>
+          <dt>Closest</dt><dd>${Math.round(c.dist)} nm<small>at ${deg3(c.brg)}</small></dd>
+          <dt>Highest</dt><dd>${ft(top)}</dd>
+          <dt>Ground speed</dt><dd>${f.gs} kt</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="grid2" style="margin-top:32px">
+      <div><h3>Altitude</h3><div class="chart" id="d-alt"></div></div>
+      <div><h3>Ground speed</h3><div class="chart" id="d-gs"></div></div>
+    </div>
+    <h2>Visits</h2>
+    <p class="sub">${visits.length} ${visits.length === 1 ? "visit" : "visits"} in the last 90 days${visits.length > 1 ? ", on " + new Set(visits.map(v => new Date(v.start * 1000).toDateString())).size + " days" : ""}. Select one to see its track.</p>
+    <div class="table-scroll"><table><thead><tr><th>Day</th><th>First heard</th><th class="num">Heard for</th><th class="num">Closest</th><th class="num">Highest</th></tr></thead><tbody>
+      ${visits.slice(0, 12).map(v => `<tr class="${v === f ? "current" : ""}"${v === f ? ' aria-current="true"' : ""}><td><a href="${flightHref(v)}">${dayName(v.start)}</a></td><td>${fmtTime(v.start)}</td>
+        <td class="num">${v.start + v.dur > NOW ? "in range now" : mins(v.dur)}</td><td class="num">${Math.round(v.closest.dist)} nm</td><td class="num">${ft(Math.max(v.alt0, v.alt1))}</td></tr>`).join("")}
+    </tbody></table></div>`;
+  const g = roseBase(document.getElementById("d-rose"), { ever: "faint", today: false });
+  g.append(svgEl("polyline", { class: "track", points: samples.map(([, p]) => xy(p.brg, p.dist).map(v => v.toFixed(1)).join(",")).join(" ") }));
+  const [cx, cy] = xy(c.brg, c.dist);
+  g.append(svgEl("line", { class: "closest", x1: C, y1: C, x2: cx, y2: cy }));
+  g.append(svgEl("circle", { class: "closest-dot", cx, cy, r: 4 }));
+  const [sx, sy] = xy(samples[0][1].brg, samples[0][1].dist); g.append(svgEl("circle", { class: "track-end", cx: sx, cy: sy, r: 4 }));
+  const lp = samples.at(-1)[1], [ex, ey] = xy(lp.brg, lp.dist), plane = svgEl("g", { class: "plane" + (f.squawk ? " alert" : ""), transform: `translate(${ex},${ey})` });
+  plane.append(svgEl("path", { d: "M0,-9 L6,7 L0,3.5 L-6,7 Z", transform: `rotate(${f.track.toFixed(0)})` })); g.append(plane);
+  const tsx = samples.map(([t]) => t);
+  chart("d-alt", [line("Altitude", "--airspace", " ft")], [tsx, samples.map(([, p]) => p.alt)], { group: "detail", y: { range: (u, mn, mx) => [0, Math.max(5000, mx * 1.15)] } });
+  chart("d-gs", [line("Ground speed", "--airspace", " kt")], [tsx, samples.map(([, p]) => p.gs + Math.round(Math.sin(p.dist) * 4))], { group: "detail", y: { range: (u, mn, mx) => [0, mx * 1.2] } });
+  window.scrollTo(0, 0);
+}
+
+// ================= routing, tabs, theme =================
+const TABS = ["now", "history", "logbook", "receiver"];
+function route() {
+  const h = decodeURIComponent(location.hash.slice(1)) || "now";
+  const detail = h.startsWith("a/");
+  TABS.forEach(t => { const on = !detail && t === h, tab = document.getElementById("t-" + t);
+    tab.setAttribute("aria-selected", on); tab.tabIndex = on || (detail && t === lastTab) ? 0 : -1;
+    document.getElementById("p-" + t).hidden = !on; });
+  document.getElementById("p-detail").hidden = !detail;
+  hideTip(); if (playing) stopPlay();
+  if (detail) { const [, cs, start] = h.split("/"); renderDetail(cs, start); return; }
+  if (!TABS.includes(h)) { location.hash = "#now"; return; }
+  lastTab = h; resizeCharts(); drawStack(); drawTypes(); drawAntenna(); if (h === "now") renderReplay();
+}
+addEventListener("hashchange", route);
+const tabEls = TABS.map(t => document.getElementById("t-" + t));
+tabEls.forEach((t, i) => t.addEventListener("keydown", e => {
+  const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+  if (d) { e.preventDefault(); const n = tabEls[(i + d + tabEls.length) % tabEls.length]; location.hash = n.getAttribute("href"); n.focus(); }
+}));
+const themeBtn = document.getElementById("themeBtn");
+const isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+const syncThemeBtn = () => { themeBtn.textContent = isDark() ? "Light" : "Dark"; themeBtn.setAttribute("aria-label", isDark() ? "Switch to light theme" : "Switch to dark theme"); };
+themeBtn.addEventListener("click", () => { document.documentElement.dataset.theme = isDark() ? "light" : "dark"; syncThemeBtn(); redraw(); });
+function redraw() { drawMainRose(); buildCharts(); buildHeat(); route(); }
+new ResizeObserver(() => { resizeCharts(); drawStack(); drawTypes(); drawAntenna(); }).observe(document.querySelector("main"));
+
+renderFacts(); renderLog(); renderRegularsRare(); renderLogbook(); syncThemeBtn(); redraw();
+</script>
+</body>
+</html>
