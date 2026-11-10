@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "schedule": ["before 6am on monday"],
+  "timezone": "America/New_York",
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "packageRules": [
+    {
+      "description": "One weekly PR for everything that isn't a major version; majors stay separate.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "non-major dependencies"
+    }
+  ]
+}
