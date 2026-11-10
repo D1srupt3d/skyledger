@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -233,6 +234,19 @@ type Result struct{ Imported, Failed int }
 func RunOnce(ctx context.Context, conn *pgx.Conn, f *feed.Feed, s config.Settings, today time.Time) (Result, error) {
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
 	yesterday := today.AddDate(0, 0, -1)
+	// Before the history search, which returns early on a receiver with no history yet:
+	// the web map centers on this, so a fresh install needs it too.
+	rx, err := ReceiverLocation(ctx, f)
+	if err != nil {
+		return Result{}, err
+	}
+	if rx != nil {
+		for key, v := range map[string]float64{"rx_lat": rx.Lat, "rx_lon": rx.Lon} {
+			if err := migrate.SetMeta(ctx, conn, key, strconv.FormatFloat(v, 'f', -1, 64)); err != nil {
+				return Result{}, err
+			}
+		}
+	}
 	var firstDay time.Time
 	if s.HistoryStart != nil {
 		firstDay = *s.HistoryStart
@@ -262,10 +276,6 @@ func RunOnce(ctx context.Context, conn *pgx.Conn, f *feed.Feed, s config.Setting
 		slog.Info("history found", "starts", firstDay.Format(time.DateOnly), "days", days(firstDay, yesterday)+1)
 	}
 
-	rx, err := ReceiverLocation(ctx, f)
-	if err != nil {
-		return Result{}, err
-	}
 	rows, _ := conn.Query(ctx, "SELECT path FROM history_files")
 	paths, err := pgx.CollectRows(rows, pgx.RowTo[string])
 	if err != nil {

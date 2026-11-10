@@ -9,6 +9,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
 	"os"
@@ -107,6 +108,48 @@ func isInsufficientPrivilege(err error) bool {
 	return errors.As(err, &pg) && pg.Code == "42501"
 }
 
+func meta(t *testing.T, c *pgx.Conn, key string) string {
+	t.Helper()
+	v, err := history.Meta(ctx, c, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+// A fresh install whose readsb has a location but no heatmap history yet: the
+// location is still stored (RunOnce returns early when it finds no history).
+func TestLocationWithoutHistory(t *testing.T) {
+	base := dsnConfig(t)
+	redirectProbes(t)
+	admin := mustConnect(t, base, "", "", "")
+	exec(t, admin, "DROP DATABASE IF EXISTS location_test WITH (FORCE)")
+	exec(t, admin, "CREATE DATABASE location_test")
+	conn := mustConnect(t, base, "", "", "location_test")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/data/receiver.json" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"lat": 50.9, "lon": -0.11}`))
+	}))
+	t.Cleanup(srv.Close)
+	f, err := feed.New(srv.URL, 30*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := config.Settings{Tar1090URL: srv.URL + "/", TZ: time.UTC, RetentionDays: 30}
+	if err := migrate.Apply(ctx, conn, s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := history.RunOnce(ctx, conn, f, s, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if lat, lon := meta(t, conn, "rx_lat"), meta(t, conn, "rx_lon"); lat != "50.9" || lon != "-0.11" {
+		t.Errorf("receiver location %q, %q", lat, lon)
+	}
+}
+
 func TestPipeline(t *testing.T) {
 	base := dsnConfig(t)
 	redirectProbes(t)
@@ -201,6 +244,10 @@ func TestPipeline(t *testing.T) {
 		}
 		if res != (history.Result{Imported: 48 * demo.Days}) {
 			t.Errorf("%+v", res)
+		}
+		// The web map centers on the receiver (demo.Receiver).
+		if lat, lon := meta(t, conn, "rx_lat"), meta(t, conn, "rx_lon"); lat != "45" || lon != "-35" {
+			t.Errorf("receiver location %q, %q", lat, lon)
 		}
 		if n := scalar[int](t, conn, "SELECT count(*) FROM history_files"); n != 48*demo.Days {
 			t.Errorf("%d files", n)
