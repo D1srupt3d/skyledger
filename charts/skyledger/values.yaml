@@ -1,5 +1,5 @@
 # skyledger chart settings. Defaults give the full stack: TimescaleDB, ingest,
-# history and Grafana with dashboards and alerts. Switch pieces off to bring
+# history and Grafana with dashboards. Switch pieces off to bring
 # your own. README "Kubernetes" has examples.
 
 # Base URL of your tar1090, e.g. http://ultrafeeder/. Required unless demo.enabled.
@@ -47,7 +47,7 @@ grafana:
     host: ""
     tlsSecret: ""
   persistence:
-    enabled: true     # false = emptyDir; Grafana forgets users and alert state on restart
+    enabled: true     # false = emptyDir; Grafana forgets its users on restart
     size: 1Gi
     storageClass: ""
   # "" = disable for the bundled database (in-cluster), require for your own.

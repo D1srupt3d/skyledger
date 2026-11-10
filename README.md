@@ -8,7 +8,7 @@ skyledger sits next to an existing [readsb](https://github.com/wiedehopf/readsb)
 - **Live positions** every 10 seconds, including what aircraft report beyond position: wind and temperature aloft, airspeeds, autopilot targets, emergency state, GPS integrity.
 - **Flights**, derived from the history: a searchable flight log, flights per day, a weekday by hour grid, regulars, rare visitors, first-ever sightings.
 - **Reception range**: an all-time outline of the furthest you've heard in every direction, with bad decodes filtered out, plus range by bearing and a coverage heatmap.
-- **Receiver health**: signal, noise, strong signals, message rate, gain, and alerts when the receiver goes quiet or deaf, or GPS interference shows up.
+- **Receiver health**: signal, noise, strong signals, message rate, gain, and GPS interference.
 
 Screenshots: see `docs/screenshots/` (taken from the built-in demo, which uses a fictional receiver).
 
@@ -19,7 +19,7 @@ readsb / tar1090 (your receiver)
    │  TAR1090_URL=http://ultrafeeder/
    │    data/aircraft.json, stats.json ─────→ ingest  ──┐
    │    globe_history/.../heatmap/*.bin.ttf ─→ history ─┼─→ TimescaleDB ─→ Grafana
-   │    aircraft database (db-*/…) ──────────→ history ─┘   (3 dashboards, alerts)
+   │    aircraft database (db-*/…) ──────────→ history ─┘   (3 dashboards)
 ```
 
 Four containers: `timescaledb` (TimescaleDB community edition, compressed), `ingest` (live), `history` (backfill, then nightly), `grafana`. skyledger only ever reads from your receiver. See [docs/architecture.md](docs/architecture.md).
@@ -117,14 +117,14 @@ All settings live in `.env` (Compose). The Helm chart sets them from its values 
 
 1. Remove `COMPOSE_PROFILES=grafana` from `.env` (and set `DB_BIND=0.0.0.0` if Grafana runs on another machine).
 2. Add the datasource from `charts/skyledger/grafana/datasources/skyledger.yml`, pointing `url` at this machine. Keep the uid `skyledger`: the dashboards refer to it. Grafana logs in as `skyledger_grafana`, which can only read.
-3. Import the three dashboards from `charts/skyledger/grafana/dashboards/` (or point Grafana's provisioning at that folder), and the alert rules from `charts/skyledger/grafana/alerting/` if you want them.
+3. Import the three dashboards from `charts/skyledger/grafana/dashboards/` (or point Grafana's provisioning at that folder).
 
 Grafana 12 or newer is recommended (the reception map uses the Route layer, beta since 10.1).
 
 ## Kubernetes
 
 The Helm chart installs the same stack as Compose: TimescaleDB, `ingest`,
-`history`, and Grafana with the dashboards and alerts.
+`history`, and Grafana with the dashboards.
 
 ```bash
 helm install skyledger oci://ghcr.io/d1srupt3d/charts/skyledger \
@@ -184,10 +184,6 @@ kubectl -n skyledger delete pvc data-skyledger-timescaledb-0
 # only if the chart generated the Secret (no existingSecret):
 kubectl -n skyledger delete secret skyledger
 ```
-
-## Alerts
-
-Four rules come provisioned: receiver stats stale, receiver decoding nothing, history import stale, and GPS degraded for many aircraft. They show as firing in Grafana, but nothing is sent anywhere until you add a contact point (Alerting, Contact points: email, Discord, ntfy, Telegram and so on) and route the `app=skyledger` alerts to it.
 
 ## Upgrading
 

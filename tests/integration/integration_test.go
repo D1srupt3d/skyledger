@@ -20,7 +20,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"go.yaml.in/yaml/v3"
 
 	"github.com/D1srupt3d/skyledger/internal/config"
 	"github.com/D1srupt3d/skyledger/internal/dashboards"
@@ -319,43 +318,6 @@ func TestPipeline(t *testing.T) {
 			}
 			if err != nil {
 				t.Errorf("%s: %v", name, err)
-			}
-		}
-	})
-
-	step("every alert query runs", func(t *testing.T) {
-		raw, err := os.ReadFile("../../charts/skyledger/grafana/alerting/skyledger.yml")
-		if err != nil {
-			t.Fatal(err)
-		}
-		var alerting struct {
-			Groups []struct {
-				Rules []struct {
-					Title string
-					Data  []struct {
-						Model struct {
-							RawSQL string `yaml:"rawSql"`
-						}
-					}
-				}
-			}
-		}
-		if err := yaml.Unmarshal(raw, &alerting); err != nil {
-			t.Fatal(err)
-		}
-		rules := alerting.Groups[0].Rules
-		if len(rules) != 4 {
-			t.Fatalf("%d rules", len(rules))
-		}
-		for _, r := range rules {
-			rows, err := grafana.Query(ctx, r.Data[0].Model.RawSQL)
-			if err == nil {
-				for rows.Next() {
-				}
-				err = rows.Err()
-			}
-			if err != nil {
-				t.Errorf("%s: %v", r.Title, err)
 			}
 		}
 	})

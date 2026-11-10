@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Grafana 13.3.0 (was 13.2.2), in Compose and the Helm chart.
+- The four Grafana alert rules are gone (receiver stats stale, decoding nothing, history import stale, GPS degraded). Upgrading removes them from Grafana; if you routed them to a contact point, that route no longer gets anything. The Receiver dashboard still shows all four conditions.
 
 ## 0.4.0
 
