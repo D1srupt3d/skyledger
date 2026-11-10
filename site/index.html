@@ -7,7 +7,7 @@
   <meta name="description" content="skyledger archives your readsb + tar1090 receiver in TimescaleDB, imports its heatmap history, and puts Grafana dashboards on top.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,13 +27,11 @@
           <a class="button" href="https://github.com/D1srupt3d/skyledger">View on GitHub</a>
         </div>
       </div>
-      <figure class="board">
-        <div class="strip"><span>DMO303</span><span>B38M<small>DEMO-03</small></span><span>FL390<small>highest</small></span><span>58 nm<small>closest</small></span></div>
-        <div class="strip"><span>DEMOX1</span><span>C172<small>DEMO-09</small></span><span>3000 ft<small>highest</small></span><span>1 nm<small>closest</small></span></div>
-        <div class="strip"><span>RCH99</span><span>C17<small>DEMO-10</small></span><span>FL280<small>highest</small></span><span>25 nm<small>closest</small></span></div>
-        <div class="strip"><span>DMO707</span><span>B38M<small>DEMO-07</small></span><span>FL340<small>highest</small></span><span>66 nm<small>closest</small></span></div>
-        <div class="strip"><span>DMO202</span><span>B38M<small>DEMO-02</small></span><span>FL350<small>highest</small></span><span>5 nm<small>closest</small></span></div>
-        <figcaption>Flights from the built-in demo, which invents a receiver in the North Atlantic.</figcaption>
+      <figure class="rose-figure">
+        <a href="demo/" aria-label="Open the live demo">
+          <svg id="hero-rose" viewBox="0 0 640 640" role="img" aria-label="Reception compass rose from the live demo: range rings, the all-time and today outlines over a map, and aircraft in range"></svg>
+        </a>
+        <figcaption>The reception compass rose from the live demo.</figcaption>
       </figure>
     </section>
 
@@ -159,6 +157,49 @@ docker compose up -d</code></pre></div>
   </footer>
 </div>
 <script>
+  // Hero: the demo's compass rose, drawn from the same seeded outlines and map so the two match.
+  (() => {
+    const svg = document.getElementById("hero-rose"), NS = "http://www.w3.org/2000/svg", R = 280, C = 320, MAXNM = 300;
+    const el = (tag, attrs, text) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; svg.append(e); return e; };
+    const xy = (brg, nm) => { const a = (brg - 90) * Math.PI / 180, r = nm / MAXNM * R; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+    const fromEN = (e, n) => [(Math.atan2(e, n) * 180 / Math.PI + 360) % 360, Math.hypot(e, n)];
+    let s = 42; const rnd = () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+    const ever = [], today = [];
+    for (let d = 0; d < 360; d++) {
+      ever.push(Math.min(285, 205 + 45 * Math.cos((d - 250) * Math.PI / 180) + 18 * Math.sin(d * 5 * Math.PI / 180) + 10 * rnd()));
+      today.push(ever[d] * (0.72 + 0.12 * Math.sin(d * 3 * Math.PI / 180) + 0.06 * rnd()));
+    }
+    const pts = arr => arr.map((nm, d) => xy(d, nm).map(v => v.toFixed(1)).join(",")).join(" ");
+    function draw(map) {
+      svg.innerHTML = "";
+      const defs = el("defs", {}), clip = document.createElementNS(NS, "clipPath"); clip.id = "hero-clip";
+      const c = document.createElementNS(NS, "circle"); c.setAttribute("cx", C); c.setAttribute("cy", C); c.setAttribute("r", R); clip.append(c); defs.append(clip);
+      el("circle", { class: "water", cx: C, cy: C, r: R });
+      if (map) el("path", { class: "land", "clip-path": "url(#hero-clip)",
+        d: map.land.map(r => "M" + r.concat([r[0]]).map(([e, n]) => xy(...fromEN(e, n)).map(v => v.toFixed(1)).join(",")).join("L")).join("") });
+      for (let nm = 50; nm <= 300; nm += 50) el("circle", { class: "ring", cx: C, cy: C, r: nm / MAXNM * R });
+      for (let d = 0; d < 360; d += 5) {
+        const len = d % 30 === 0 ? 14 : d % 10 === 0 ? 9 : 5, a = (d - 90) * Math.PI / 180, [x1, y1] = xy(d, MAXNM);
+        el("line", { class: "tick", x1, y1, x2: C + (R - len) * Math.cos(a), y2: C + (R - len) * Math.sin(a), "stroke-width": d % 30 === 0 ? 1.6 : 1 });
+        if (d % 30 === 0) { const label = { 0: "N", 90: "E", 180: "S", 270: "W" }[d] ?? String(d).padStart(3, "0");
+          el("text", { x: C + (R + 18) * Math.cos(a), y: C + (R + 18) * Math.sin(a) + 5, "text-anchor": "middle", "font-size": label.length === 1 ? 19 : 14, class: label.length === 1 ? "card-pt" : "" }, label); }
+      }
+      el("polygon", { class: "ever", points: pts(ever) });
+      el("polygon", { class: "today", points: pts(today) });
+      for (const [cs, brg, nm, track, alert] of [["DMO911", 188, 101, 120, true], ["RCH99", 177, 70, 300], ["DEMOX1", 342, 15, 80],
+                                                 ["DML110", 329, 99, 210], ["DME340", 295, 124, 95], ["DMO217", 40, 150, 230]]) {
+        const [x, y] = xy(brg, nm), g = document.createElementNS(NS, "g");
+        g.setAttribute("class", "plane" + (alert ? " alert" : "")); g.setAttribute("transform", `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+        const path = document.createElementNS(NS, "path"); path.setAttribute("d", "M0,-8 L5.5,6 L0,3 L-5.5,6 Z"); path.setAttribute("transform", `rotate(${track})`);
+        const t = document.createElementNS(NS, "text"); t.setAttribute("x", 9); t.setAttribute("y", 4); t.textContent = cs;
+        g.append(path, t); svg.append(g);
+      }
+      el("circle", { class: "rx", cx: C, cy: C, r: 5 });
+    }
+    draw(null);
+    fetch("demo/map.json").then(r => r.ok ? r.json() : null).then(m => m && draw(m)).catch(() => {});
+  })();
+
   // Copy buttons: added by script so they don't appear when JS is off.
   for (const box of document.querySelectorAll(".code")) {
     const button = document.createElement("button");
