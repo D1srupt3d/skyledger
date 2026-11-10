@@ -10,7 +10,7 @@ fail=0
 files() { git ls-files --cached --others --exclude-standard | grep -v -e '^go.sum$' -e '^tools/scrub_check.sh$'; }
 check() {
     local label=$1 pattern=$2 hits
-    hits=$(files | xargs -d '\n' grep -nIE -e "$pattern" -- 2>/dev/null || true)
+    hits=$(files | tr '\n' '\0' | xargs -0 grep -nIE -e "$pattern" -- 2>/dev/null || true)
     if [[ -n $hits ]]; then
         echo "scrub: $label"
         echo "  ${hits//$'\n'/$'\n'  }"
