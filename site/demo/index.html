@@ -325,7 +325,7 @@ tr.current td { background: var(--paper-2); }
   <!-- FLIGHT / AIRCRAFT PAGE -->
   <section id="p-detail" hidden aria-live="polite"></section>
 
-  <p class="proto">A preview of the web UI planned for skyledger; today it ships with Grafana dashboards. Everything here is simulated: a made-up receiver over the English Channel and made-up aircraft and airlines. Map data: Natural Earth (public domain). <a href="../">Back to skyledger</a>.</p>
+  <p class="proto">A preview of the web UI planned for skyledger; today it ships with Grafana dashboards. Everything here is simulated: a made-up receiver on the South Downs above the English Channel, and made-up aircraft and airlines. Map data: Natural Earth (public domain). <a href="../">Back to skyledger</a>.</p>
 </main>
 <div id="tip" role="tooltip"></div>
 
@@ -380,9 +380,11 @@ const byCallsign = Object.fromEntries(POOL.map(p => [p.callsign, p]));
 // A flight: a straight crossing of the range, cruising, climbing or descending.
 function makeFlight(info, start, r, shape = {}) {
   const ga = info.ga, b1 = shape.b1 ?? r() * 360, b2 = shape.b2 ?? (b1 + 180 + (r() - 0.5) * 120) % 360;
-  // Heard from the edge of today's reception (the blue outline), not beyond it.
-  const edge = b => ga ? 45 : today[Math.round(b) % 360] * (0.94 + 0.05 * r());
-  const p1 = toEN(b1, edge(b1)), p2 = toEN(b2, edge(b2));
+  // Airliners are heard from the edge of today's reception (the blue outline), not beyond it.
+  // Light aircraft stay local and over land: a hop across the Sussex countryside, 6 to 22 nm north.
+  const edge = b => today[Math.round(b) % 360] * (0.94 + 0.05 * r());
+  const west = r() < 0.5, landPt = (e0) => [e0 + r() * 15, 6 + r() * 16];
+  const p1 = ga ? landPt(west ? -35 : 10) : toEN(b1, edge(b1)), p2 = ga ? landPt(west ? 10 : -35) : toEN(b2, edge(b2));
   const cruise = ga ? 2500 : info.mil ? 28000 : 31000 + Math.round(r() * 10) * 1000;
   const prof = shape.profile ?? (ga ? "cruise" : r() < 0.2 ? "climb" : r() < 0.25 ? "descend" : "cruise");
   const alt0 = prof === "climb" ? 9000 : cruise, alt1 = prof === "descend" ? 11000 : cruise;
@@ -409,10 +411,12 @@ for (let t = NOW - DAY - 7200; t < NOW; t += 300) {
   for (let i = 0; i < n; i++) { const info = pickWeighted(rnd), s = t + rnd() * 300; MODEL.push(makeFlight(info, s, mulberry(hash(info.callsign) ^ s))); }
 }
 // The ones the page talks about, placed so they're in range now.
-const special = (cs, startAgo, shape) => { const f = makeFlight(byCallsign[cs], NOW - startAgo, mulberry(hash(cs)), shape); MODEL.push(f); return f; };
-const fEmergency = special("DMO911", 2300, { b1: 275, b2: 95, profile: "descend", squawk: "7700" });
-const fRCH = special("RCH99", 1400, { b1: 150, b2: 300 });
-const fGA = special("DEMOX1", 1500, { b1: 230, b2: 50 });
+// done: how far along its flight each one is now, so a short hop can't have ended already.
+const special = (cs, done, shape) => { const f = makeFlight(byCallsign[cs], NOW, mulberry(hash(cs)), shape);
+  f.start = Math.round(NOW - f.dur * done); MODEL.push(f); return f; };
+const fEmergency = special("DMO911", 0.6, { b1: 250, b2: 140, profile: "descend", squawk: "7700" }); // across the Channel, clear of the receiver
+const fRCH = special("RCH99", 0.35, { b1: 150, b2: 300 });
+const fGA = special("DEMOX1", 0.5, {});
 MODEL.sort((a, b) => a.start - b.start);
 const active = t => MODEL.filter(f => pos(f, t));
 
