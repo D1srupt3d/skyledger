@@ -231,7 +231,7 @@ func TestChartVersionMatchesThePackage(t *testing.T) {
 }
 
 func TestChartImagesMatchCompose(t *testing.T) {
-	// Dependabot bumps compose.yml; this keeps the chart's defaults from drifting behind it.
+	// Renovate bumps compose.yml and the chart together; this keeps the chart's defaults from drifting behind it.
 	values := readYAML(t, filepath.Join(chart, "values.yaml"))
 	services := getMap(t, readYAML(t, filepath.Join(root, "compose.yml")), "services")
 	for _, name := range []string{"timescaledb", "grafana"} {
