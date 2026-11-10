@@ -111,7 +111,7 @@ All settings live in `.env` (Compose). The Helm chart sets them from its values 
 | `GRAFANA_PORT` | `3000` | (Compose only) |
 | `DB_BIND` | `127.0.0.1` | (Compose only) where the database port is published; `0.0.0.0` for a Grafana elsewhere |
 | `DB_PORT` | `5432` | (Compose only) host port the database is published on |
-| `SKYLEDGER_VERSION` | `0.3` | (Compose only) image tag |
+| `SKYLEDGER_VERSION` | `0.4` | (Compose only) image tag |
 
 ## Using your own Grafana
 
