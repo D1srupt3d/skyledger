@@ -9,6 +9,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/D1srupt3d/skyledger/internal/config"
 	"github.com/D1srupt3d/skyledger/internal/dashboards"
@@ -28,8 +30,9 @@ import (
 	"github.com/D1srupt3d/skyledger/internal/history"
 	"github.com/D1srupt3d/skyledger/internal/ingest"
 	"github.com/D1srupt3d/skyledger/internal/migrate"
-	"github.com/D1srupt3d/skyledger/internal/queries"
 	"github.com/D1srupt3d/skyledger/internal/probe"
+	"github.com/D1srupt3d/skyledger/internal/queries"
+	"github.com/D1srupt3d/skyledger/internal/web"
 )
 
 var ctx = context.Background()
@@ -337,6 +340,34 @@ func TestPipeline(t *testing.T) {
 		}
 		if _, err := grafana.Exec(ctx, "DELETE FROM positions"); !isInsufficientPrivilege(err) {
 			t.Errorf("DELETE as grafana: %v", err)
+		}
+	})
+
+	step("web connects read only", func(t *testing.T) {
+		// DATABASE_URL names the owner; web must still log in as the read-only role.
+		owner := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=pipeline_test",
+			base.Host, base.Port, base.User, base.Password)
+		cfg, err := web.ReadOnlyConfig(config.Settings{DatabaseURL: owner, ReadOnlyDBPassword: "grafana-test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pool, err := pgxpool.NewWithConfig(ctx, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Close()
+		if err := pool.Ping(ctx); err != nil {
+			t.Fatal(err)
+		}
+		var user string
+		if err := pool.QueryRow(ctx, "SELECT current_user").Scan(&user); err != nil || user != "skyledger_grafana" {
+			t.Errorf("connected as %q: %v", user, err)
+		}
+		_, err = pool.Exec(ctx, "DELETE FROM positions")
+		var pg *pgconn.PgError
+		// 42501: insufficient privilege; 25006: read-only transaction. Either refuses the write.
+		if !errors.As(err, &pg) || (pg.Code != "42501" && pg.Code != "25006") {
+			t.Errorf("DELETE through web's pool: %v", err)
 		}
 	})
 
