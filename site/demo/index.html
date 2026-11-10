@@ -177,6 +177,33 @@ tr.current td { background: var(--paper-2); }
 .detail-head h2 { font-size: 44px; margin: 0; }
 .detail-head p { margin: 2px 0 20px; color: var(--ink-2); }
 
+/* Header search */
+.gsearch { position: relative; }
+.gsearch input { font: 400 15px "Barlow", sans-serif; color: var(--ink); background: var(--paper-2); border: 1px solid var(--rule);
+  border-radius: 6px; padding: 5px 10px; width: 230px; }
+.gresults { position: absolute; top: calc(100% + 4px); right: 0; z-index: 20; width: min(360px, 90vw); margin: 0; padding: 4px 0; list-style: none;
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; }
+.gresults li { padding: 6px 12px; font-size: 14px; color: var(--ink-2); }
+.gresults li a { font-weight: 600; margin-right: 6px; }
+@media (max-width: 700px) { .gsearch { order: 9; width: 100%; } .gsearch input { width: 100%; } }
+
+/* Line labels on the rose */
+.rose .line-label { font: 600 14px "Barlow Condensed", sans-serif; paint-order: stroke; stroke: var(--paper); stroke-width: 4px; }
+
+/* In range now */
+th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+th[aria-sort] button { color: var(--ink); }
+th[aria-sort="ascending"] button::after { content: " \2191"; }
+th[aria-sort="descending"] button::after { content: " \2193"; }
+
+/* History range */
+.range { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 24px; font-size: 15px; color: var(--ink-2); }
+.range input[type="date"] { font: inherit; color: var(--ink); background: var(--paper-2); border: 1px solid var(--rule); border-radius: 6px; padding: 3px 6px; }
+
+/* Links out */
+.links { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 18px 0 0; font-size: 15px; }
+.links .off { color: var(--ink-3); border: 1px dashed var(--rule); border-radius: 6px; padding: 3px 9px; cursor: not-allowed; }
+
 /* Logbook */
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 4px; }
 .timeline h3 { margin-top: 24px; }
@@ -195,6 +222,10 @@ tr.current td { background: var(--paper-2); }
     <h1 class="wordmark"><a href="#now">skyledger</a></h1>
     <span class="status" id="status"></span>
     <span class="spacer"></span>
+    <form class="gsearch" role="search" id="gsearch" autocomplete="off">
+      <input type="search" id="gq" placeholder="Search aircraft" aria-label="Search the last 90 days by callsign, registration, address or type" aria-controls="gresults">
+      <ul class="gresults" id="gresults" hidden></ul>
+    </form>
     <a href="../" style="font-size:15px">About skyledger</a>
     <button class="btn" id="themeBtn" type="button">Dark</button>
   </div>
@@ -216,13 +247,11 @@ tr.current td { background: var(--paper-2); }
           <button class="btn" id="play" type="button">Play</button>
           <input type="range" id="scrub" aria-label="Replay time, last 24 hours">
           <output id="when" for="scrub">Live</output>
-          <span class="hint">Drag to replay the last 24 hours. Older days replay from history at one position a minute.</span>
+          <span class="hint">Drag to replay the last 24 hours, or try 04:10 to see the header warn about the outage. Older days replay from history at one position a minute.</span>
           <button class="btn live-btn" id="live" type="button" hidden>Back to live</button>
         </div>
         <div class="key">
-          <span><i class="swatch" style="border-color:var(--airway)"></i>Furthest ever, per degree</span>
-          <span><i class="swatch" style="border-color:var(--airspace)"></i>Furthest today</span>
-          <span>Rings every 50 nm, numbered along north</span>
+          <span>Outlines: furthest reception per degree, all-time and today. Rings every 50 nm.</span>
         </div>
       </div>
       <div>
@@ -234,6 +263,10 @@ tr.current td { background: var(--paper-2); }
       </div>
     </div>
 
+    <h2 id="inrange-h">In range now</h2>
+    <p class="sub" id="inrange-sub"></p>
+    <div class="table-scroll"><table id="inrange"></table></div>
+
     <h2>Traffic, last 24 hours</h2>
     <p class="sub">The gap at 04:00 is a 25-minute ingest outage: skyledger shows it as a gap instead of drawing a line across it.</p>
     <div class="grid2">
@@ -244,10 +277,17 @@ tr.current td { background: var(--paper-2); }
 
   <!-- HISTORY -->
   <section role="tabpanel" id="p-history" aria-labelledby="t-history" hidden>
+    <div class="range" role="group" aria-label="Time range for flights, the flight log and regulars" id="range">
+      <button class="btn" type="button" data-days="7">7 days</button>
+      <button class="btn" type="button" data-days="30">30 days</button>
+      <button class="btn" type="button" data-days="90">90 days</button>
+      <label>From <input type="date" id="from"></label>
+      <label>to <input type="date" id="to"></label>
+    </div>
     <h2>Flights</h2>
     <p class="sub">Built nightly from the receiver's own history. A flight ends when an aircraft goes unheard for 30 minutes.</p>
     <div class="grid2">
-      <div><h3>Flights per day, last 30 days</h3><div class="chart" id="c-fpd"></div></div>
+      <div><h3 id="fpd-h">Flights per day</h3><div class="chart" id="c-fpd"></div></div>
       <div>
         <h3>Flights per hour, last 7 days</h3>
         <div class="heat" id="heat" role="img" aria-label="Flights per hour for each of the last 7 days"></div>
@@ -256,11 +296,12 @@ tr.current td { background: var(--paper-2); }
     </div>
 
     <h2>Flight log</h2>
+    <p class="sub" id="log-sub"></p>
     <input class="search" id="q" type="search" placeholder="Search callsign, registration, type or operator" aria-label="Search flights">
     <div class="table-scroll"><table id="log"></table></div>
 
     <div class="grid2" style="margin-top:40px">
-      <div><h3>Regulars</h3><p class="sub">Most flights in the last 30 days.</p><div class="table-scroll"><table id="regulars"></table></div></div>
+      <div><h3>Regulars</h3><p class="sub" id="reg-sub">Most flights in the range.</p><div class="table-scroll"><table id="regulars"></table></div></div>
       <div><h3>Rare visitors</h3><p class="sub">Seen on no more than 3 days in the last 90.</p><div class="table-scroll"><table id="rare"></table></div></div>
     </div>
 
@@ -361,10 +402,13 @@ const reg = r => "DEMO-" + pickR(r, LETTERS) + pickR(r, LETTERS) + pickR(r, LETT
 
 // Every callsign the receiver knows, with how often it visits (flights per day).
 const POOL = [];
-for (const [code, op] of AIRLINES) for (let k = 0; k < 7; k++) {
+const taken = new Set();
+for (const [code, op] of AIRLINES) for (let k = 0; k < 30; k++) {
   const r = mulberry(hash(code + k));
-  POOL.push({ callsign: code + (100 + Math.floor(r() * 899)), op, type: pickR(r, ["B77W", "A359", "B789", "A333", "B763", "A21N", "B38M"]),
-    reg: reg(r), hex: "de" + Math.floor(r() * 0xffff).toString(16).padStart(4, "0"), freq: k < 2 ? 0.85 + 0.15 * r() : k < 5 ? 0.15 + 0.3 * r() : 0.01 + 0.02 * r() });
+  let cs; do cs = code + (100 + Math.floor(r() * 899)); while (taken.has(cs)); taken.add(cs);
+  POOL.push({ callsign: cs, op, type: pickR(r, ["B77W", "A359", "B789", "A333", "B763", "A21N", "B38M"]),
+    reg: reg(r), hex: "de" + Math.floor(r() * 0xffff).toString(16).padStart(4, "0"),
+    freq: k < 6 ? 0.85 + 0.15 * r() : k < 20 ? 0.25 + 0.45 * r() : 0.01 + 0.04 * r() });
 }
 const SPECIAL = {
   DMO911: { callsign: "DMO911", op: "Demo Air", type: "B772", reg: "DEMO-11", hex: "de000b", freq: 0.6 },
@@ -402,34 +446,35 @@ function pos(f, t) {
   return { brg, dist, e, n, alt: Math.round((f.alt0 + (f.alt1 - f.alt0) * Math.min(1, frac * 1.6)) / 100) * 100, gs: f.gs, track: f.track };
 }
 
-// The last 26 hours of traffic, busier by day.
+// 90 days of traffic, busier by day. Every count on the page comes from this one list.
 const weighted = POOL.filter(p => p.freq > 0 && !p.ga), totalFreq = weighted.reduce((a, p) => a + p.freq, 0);
 const pickWeighted = r => { let x = r() * totalFreq; for (const p of weighted) if ((x -= p.freq) <= 0) return p; return weighted[0]; };
-const MODEL = [];
-for (let t = NOW - DAY - 7200; t < NOW; t += 300) {
+const ALL = [];
+for (let t = NOW - 90 * DAY; t < NOW; t += 300) {
   const lam = 0.15 + 2.2 * diurnal(t), n = Math.floor(lam + rnd());
-  for (let i = 0; i < n; i++) { const info = pickWeighted(rnd), s = t + rnd() * 300; MODEL.push(makeFlight(info, s, mulberry(hash(info.callsign) ^ s))); }
+  for (let i = 0; i < n; i++) { const info = pickWeighted(rnd), s = t + rnd() * 300; if (s < NOW) ALL.push(makeFlight(info, s, mulberry(hash(info.callsign) ^ s))); }
+}
+// Light aircraft fly a local hop on some days, in daylight.
+for (const p of POOL.filter(p => p.ga)) for (let d = 1; d < 90; d++) {
+  const r = mulberry(hash(p.callsign) * 31 + d), day = new Date((NOW - d * DAY) * 1000).setHours(0, 0, 0, 0) / 1000;
+  if (r() < 0.1) ALL.push(makeFlight(p, day + (9 + r() * 8) * 3600, r));
 }
 // The ones the page talks about, placed so they're in range now.
 // done: how far along its flight each one is now, so a short hop can't have ended already.
 const special = (cs, done, shape) => { const f = makeFlight(byCallsign[cs], NOW, mulberry(hash(cs)), shape);
-  f.start = Math.round(NOW - f.dur * done); MODEL.push(f); return f; };
+  f.start = Math.round(NOW - f.dur * done); ALL.push(f); return f; };
 const fEmergency = special("DMO911", 0.6, { b1: 250, b2: 140, profile: "descend", squawk: "7700" }); // across the Channel, clear of the receiver
 const fRCH = special("RCH99", 0.35, { b1: 150, b2: 300 });
 const fGA = special("DEMOX1", 0.5, {});
-MODEL.sort((a, b) => a.start - b.start);
+// One-off visitors (the rare ones) on their own days.
+POOL.filter(p => p.days).forEach(p => p.days.forEach((t, i) => ALL.push(makeFlight(p, t, mulberry(hash(p.callsign) + i)))));
+ALL.sort((a, b) => a.start - b.start);
+// The live sky and replay only need the last 26 hours.
+const MODEL = ALL.filter(f => f.start + f.dur > NOW - DAY - 7200);
 const active = t => MODEL.filter(f => pos(f, t));
-
-// Every visit of one aircraft: the simulated last day plus older days drawn from its own seed.
-function visitsOf(info) {
-  const v = MODEL.filter(f => f.info === info);
-  if (info.days) info.days.forEach((t, i) => v.push(makeFlight(info, t, mulberry(hash(info.callsign) + i))));
-  for (let d = 2; d <= 90; d++) {
-    const r = mulberry(hash(info.callsign) * 31 + d);
-    if (r() < info.freq) v.push(makeFlight(info, NOW - d * DAY + (6 + r() * 14) * 3600, r));
-  }
-  return v.sort((a, b) => b.start - a.start);
-}
+// Every visit of each aircraft, newest first.
+const VISITS = Object.fromEntries(POOL.map(p => [p.callsign, []]));
+for (let i = ALL.length - 1; i >= 0; i--) VISITS[ALL[i].info.callsign].push(ALL[i]);
 
 // Time series on 5-minute steps, derived from the simulated sky, with one outage at 04:00.
 const ts = [], tracked = [], alt = [[], [], [], []], sig = [], noise = [], msg = [], strong = [], gps = [];
@@ -446,11 +491,14 @@ for (let t = Math.floor((NOW - DAY) / 300) * 300; t <= NOW; t += 300) {
   msg.push(v(Math.round(250 + 60 * here.length + 80 * rnd()))); strong.push(v(+(1 + 2.5 * d + rnd() * 0.6).toFixed(2)));
   gps.push(v(Math.abs(t - (NOW - 7 * 3600)) < 2400 ? 6 + Math.round(4 * rnd()) : (rnd() < 0.12 ? 1 : 0)));
 }
-const days = [], fpd = [];
-for (let i = 29; i >= 0; i--) {
-  const t = NOW - i * DAY, wd = new Date(t * 1000).getDay(); days.push(t);
-  fpd.push(i === 0 ? MODEL.filter(f => f.start > NOW - DAY).length : Math.round(310 + (wd === 0 || wd === 6 ? -45 : 15) + 30 * rnd()));
+const localDay = t => new Date(t * 1000).setHours(0, 0, 0, 0) / 1000;
+const perDay = new Map(), perHour = new Map();
+for (const f of ALL) {
+  const d = localDay(f.start); perDay.set(d, (perDay.get(d) || 0) + 1);
+  const k = d + "|" + new Date(f.start * 1000).getHours(); perHour.set(k, (perHour.get(k) || 0) + 1);
 }
+const days = [], fpd = [];
+for (let i = 89; i >= 0; i--) { const d = localDay(NOW - i * DAY); days.push(d); fpd.push(perDay.get(d) || 0); }
 
 // ================= helpers =================
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -481,7 +529,16 @@ const showTip = (html, x, y) => { tip.innerHTML = html; tip.style.display = "blo
   const r = tip.getBoundingClientRect(); tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + "px";
   tip.style.top = Math.min(y + 14, innerHeight - r.height - 8) + "px"; };
 const hideTip = () => { tip.style.display = "none"; };
-document.getElementById("status").innerHTML = ICONS.good + "<span>Demo receiver live, last position 3 s ago</span>";
+// Header status from how old the newest position is: amber after 2 minutes, red after 15.
+// The demo's only silence is the 04:00 outage, so replaying into it shows the warning.
+const OUTAGE = [new Date(NOW * 1000).setHours(4, 0, 0, 0) / 1000, new Date(NOW * 1000).setHours(4, 25, 0, 0) / 1000];
+function setStatus(t) {
+  const age = t >= OUTAGE[0] && t < OUTAGE[1] ? t - OUTAGE[0] : 3, at = replayT == null ? "" : `At ${fmtTime(t)}: `;
+  const [icon, text] = age < 120 ? ["good", `${replayT == null ? "Demo receiver live" : at + "receiver live"}, last position ${Math.round(age)} s ago`]
+    : age < 900 ? ["warning", `${at}no new positions for ${Math.round(age / 60)} min`]
+    : ["critical", `${at}receiver silent for ${Math.round(age / 60)} min`];
+  document.getElementById("status").innerHTML = ICONS[icon] + `<span>${text}</span>`;
+}
 
 // ================= compass roses =================
 const R = 280, C = 320, MAXNM = 300;
@@ -512,6 +569,13 @@ function roseBase(svg, { ever: showEver = "full", today: showToday = true } = {}
   if (showEver) { const p = svgEl("polygon", { class: "ever" + (showEver === "faint" ? " faint" : ""), points: outline(ever) });
     if (showEver === "full") p.setAttribute("fill", `url(#${svg.id}-hatch)`); svg.append(p); }
   if (showToday) svg.append(svgEl("polygon", { class: "today", points: outline(today) }));
+  // Name each outline where it reaches furthest, in its own color, instead of a separate key.
+  // All-time sits just outside its line and reads outward; Today sits just inside its line and reads inward.
+  const label = (text, deg, nm, color, outside) => { const [x, y] = xy(deg, outside ? Math.min(nm + 10, MAXNM - 6) : nm - 10);
+    const west = deg > 180; svg.append(svgEl("text", { class: "line-label", x, y: y + 5, fill: css(color),
+      "text-anchor": west === outside ? "end" : "start" }, text)); };
+  if (showEver === "full") label("All-time", furthestEverDeg, ever[furthestEverDeg], "--airway", true);
+  if (showToday) label("Today", furthestTodayDeg, today[furthestTodayDeg], "--airspace", false);
   const g = svgEl("g"); svg.append(g);
   svg.append(svgEl("circle", { class: "rx", cx: C, cy: C, r: 5 }));
   return g;
@@ -569,8 +633,25 @@ function drawMainRose() { overlay = roseBase(document.getElementById("rose")); r
 const scrub = document.getElementById("scrub"), when = document.getElementById("when"), playBtn = document.getElementById("play"), liveBtn = document.getElementById("live");
 scrub.min = NOW - DAY; scrub.max = NOW; scrub.step = 10; scrub.value = NOW;
 let playing = null;
+let sortKey = "dist", sortDir = 1;
+const COLS = [["callsign", "Callsign"], ["type", "Type"], ["alt", "Altitude"], ["gs", "Speed"], ["dist", "Distance"], ["brg", "Bearing"], ["squawk", "Squawk"]];
+function renderInRange(t) {
+  const rows = active(t).map(f => { const p = pos(f, t); return { f, callsign: f.info.callsign, type: f.info.type, alt: p.alt, gs: p.gs, dist: p.dist, brg: p.brg, squawk: f.squawk || "" }; });
+  rows.sort((a, b) => (a[sortKey] > b[sortKey] ? 1 : a[sortKey] < b[sortKey] ? -1 : 0) * sortDir);
+  document.getElementById("inrange-h").textContent = replayT == null ? "In range now" : `In range at ${fmtTime(t)}`;
+  document.getElementById("inrange-sub").textContent = `${rows.length} aircraft with a position. Select a column to sort.`;
+  const num = new Set(["alt", "gs", "dist", "brg"]);
+  document.getElementById("inrange").innerHTML = "<thead><tr>" + COLS.map(([k, n]) =>
+    `<th class="${num.has(k) ? "num" : ""}"${k === sortKey ? ` aria-sort="${sortDir > 0 ? "ascending" : "descending"}"` : ""}><button type="button" data-k="${k}">${n}</button></th>`).join("") +
+    "</tr></thead><tbody>" + rows.map(r => `<tr><td>${csLink(r.f)}</td><td>${r.type}</td><td class="num">${ft(r.alt)}</td><td class="num">${r.gs} kt</td>
+      <td class="num">${Math.round(r.dist)} nm</td><td class="num">${deg3(r.brg)}</td><td>${r.squawk ? ICONS.critical + " " + r.squawk : ""}</td></tr>`).join("") + "</tbody>";
+  document.querySelectorAll("#inrange th button").forEach(b => b.addEventListener("click", () => {
+    sortDir = sortKey === b.dataset.k ? -sortDir : 1; sortKey = b.dataset.k; renderInRange(replayT ?? Date.now() / 1000);
+    document.querySelector(`#inrange th button[data-k="${sortKey}"]`).focus(); }));
+}
 function renderReplay() {
   const t = replayT ?? Date.now() / 1000, n = drawPlanes(t);
+  renderInRange(t); setStatus(t);
   when.textContent = replayT == null ? `Live, ${n} aircraft` : `${fmtDay(t)} ${fmtTime(t)}, ${n} aircraft`;
   liveBtn.hidden = replayT == null;
   if (replayT != null) scrub.value = replayT;
@@ -594,7 +675,7 @@ function renderFacts() {
     <dt>Aircraft now</dt><dd>${n + 3}<small>${n} with a position</small></dd>
     <dt>Furthest today</dt><dd>${Math.round(today[furthestTodayDeg])} nm<small>at ${deg3(furthestTodayDeg)}</small></dd>
     <dt>Furthest ever</dt><dd>${Math.round(ever[furthestEverDeg])} nm<small>at ${deg3(furthestEverDeg)}, ${fmtDate(recordDay)}</small></dd>
-    <dt>Flights today</dt><dd>${fpd.at(-1)}<small>${fpd.at(-1) - fpd.at(-2) >= 0 ? "+" : ""}${fpd.at(-1) - fpd.at(-2)} on yesterday</small></dd>`;
+    <dt>Flights today</dt><dd>${fpd.at(-1)}<small>so far; ${fpd.at(-2)} yesterday</small></dd>`;
   const pb = pos(fEmergency, NOW), pr = pos(fRCH, NOW), pg = pos(fGA, NOW);
   document.getElementById("notable").innerHTML = `
     <li>${ICONS.critical}<div><b>${csLink(fEmergency)} is squawking 7700</b><br><span>General emergency, ${Math.round(pb.dist)} nm at ${deg3(pb.brg)}, descending through ${ft(pb.alt)}</span></div></li>
@@ -636,12 +717,18 @@ function buildCharts() {
   chart("c-msg", [line("Messages per second", "--airspace")], [ts, msg]);
   chart("c-strong", [line("Strong signals", "--airspace", "%")], [ts, strong]);
   chart("c-gps", [line("Aircraft", "--airway")], [ts, gps]);
-  chart("c-fpd", [{ label: "Flights", fill: css("--airspace"), stroke: css("--airspace"), width: 0, value: (u, v) => v + " flights",
-      paths: uPlot.paths.bars({ size: [0.7, 24], radius: 0.2 }), points: { show: false } }],
-    [days, fpd], { xValue: (u, v) => fmtDay(v), y: { range: (u, mn, mx) => [0, mx * 1.1] } });
+  buildFpd();
   const wt = ts.filter((_, i) => i % 3 === 0);
   chart("c-wind", [line("Wind speed", "--airspace", " kt")], [wt, wt.map(t => 70 + 25 * Math.sin(t / 20000) + 8 * rnd())]);
   chart("c-oat", [line("Temperature", "--airway", " °C")], [wt, wt.map(t => -52 + 3 * Math.sin(t / 30000) + rnd())]);
+}
+
+function buildFpd() {
+  destroyCharts("fpd");
+  const idx = days.map((t, i) => i).filter(i => dayStart(days[i]) >= dayStart(range.from) && days[i] <= range.to);
+  chart("c-fpd", [{ label: "Flights", fill: css("--airspace"), stroke: css("--airspace"), width: 0, value: (u, v) => v + " flights",
+      paths: uPlot.paths.bars({ size: [0.7, 24], radius: 0.2 }), points: { show: false } }],
+    [idx.map(i => days[i]), idx.map(i => fpd[i])], { group: "fpd", xValue: (u, v) => fmtDay(v), y: { range: (u, mn, mx) => [0, mx * 1.1] } });
 }
 
 // Stacked bars: aircraft per clock hour, by altitude band.
@@ -694,12 +781,12 @@ function drawBars(id, items, { color = "--airspace", label = v => v, base = 0, h
 function buildHeat() {
   const h = document.getElementById("heat"); h.innerHTML = "<span></span>";
   for (let hr = 0; hr < 24; hr++) h.insertAdjacentHTML("beforeend", `<span class="hr">${hr % 6 === 0 ? hr : ""}</span>`);
-  const steps = ["--heat-0", "--heat-1", "--heat-2", "--heat-3", "--heat-4"], r = mulberry(7);
+  const steps = ["--heat-0", "--heat-1", "--heat-2", "--heat-3", "--heat-4"];
   for (let i = 6; i >= 0; i--) {
     const day = NOW - i * DAY;
     h.insertAdjacentHTML("beforeend", `<span class="lbl">${i === 0 ? "Today" : fmtDay(day)}</span>`);
     for (let hr = 0; hr < 24; hr++) {
-      const n = i === 0 && hr > new Date().getHours() ? null : Math.round(26 * Math.max(0, Math.sin((hr - 5) / 24 * 2 * Math.PI)) ** 0.8 + 3 * r());
+      const n = i === 0 && hr > new Date().getHours() ? null : perHour.get(localDay(day) + "|" + hr) || 0;
       const cell = document.createElement("span"); cell.className = "cell";
       if (n != null) { cell.style.background = `var(${steps[Math.min(4, Math.ceil(n / 7))]})`;
         cell.addEventListener("mousemove", e => showTip(`<b>${n} flights</b><br>${i === 0 ? "Today" : fmtDay(day)}, ${hr}:00 to ${hr + 1}:00`, e.clientX, e.clientY));
@@ -710,21 +797,47 @@ function buildHeat() {
   }
   document.getElementById("heatKey").innerHTML = "Fewer " + steps.map(s => `<i style="background:var(${s})"></i>`).join("") + " More";
 }
-const LOG = MODEL.filter(f => f.start > NOW - DAY && f.start < NOW).sort((a, b) => b.start - a.start);
+// History time range: last N days, or From/To dates (local days, inclusive).
+const dayStart = t => new Date(t * 1000).setHours(0, 0, 0, 0) / 1000;
+// The first of the last n local days. From the day list, so a daylight saving change inside the range can't shift it.
+const firstOfLast = n => days[days.length - n];
+let range = { from: firstOfLast(30), to: NOW, label: "last 30 days", days: 30 };
+const isoDay = t => { const d = new Date(t * 1000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const fromIso = v => new Date(v + "T00:00:00").getTime() / 1000;
+function setRange(r) { range = r; renderHistory(); }
+function renderHistory() {
+  document.querySelectorAll("#range button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.days === range.days)));
+  const from = document.getElementById("from"), to = document.getElementById("to");
+  from.min = to.min = isoDay(NOW - 89 * DAY); from.max = to.max = isoDay(NOW);
+  from.value = isoDay(range.from); to.value = isoDay(Math.min(range.to, NOW));
+  document.getElementById("fpd-h").textContent = "Flights per day, " + range.label;
+  document.getElementById("reg-sub").textContent = "Most flights, " + range.label + ".";
+  renderLog(document.getElementById("q").value); renderRegularsRare(); buildFpd();
+}
+document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
+  const n = +b.dataset.days; setRange({ from: firstOfLast(n), to: NOW, label: `last ${n} days`, days: n }); }));
+["from", "to"].forEach(id => document.getElementById(id).addEventListener("change", () => {
+  let f = fromIso(document.getElementById("from").value), t = fromIso(document.getElementById("to").value) + DAY - 1;
+  if (!(f <= t)) return; // ignore a half-typed or reversed range
+  setRange({ from: f, to: t, label: `${fmtDate(f)} to ${fmtDate(t)}`, days: 0 });
+}));
+const inRange = t => t >= range.from && t <= range.to;
 function renderLog(q = "") {
   q = q.trim().toLowerCase();
-  const rows = LOG.filter(f => !q || [f.info.callsign, f.info.type, f.info.op, f.info.reg, TYPES[f.info.type]].some(s => s.toLowerCase().includes(q))).slice(0, 15);
+  const all = Object.values(VISITS).flat().filter(f => inRange(f.start) && f.start < NOW).sort((a, b) => b.start - a.start);
+  const hits = all.filter(f => !q || [f.info.callsign, f.info.type, f.info.op, f.info.reg, f.info.hex, TYPES[f.info.type]].some(s => s.toLowerCase().includes(q)));
+  const rows = hits.slice(0, 15);
+  document.getElementById("log-sub").textContent = `${hits.length.toLocaleString()} flights${q ? ` matching "${q}"` : ""}, ${range.label}. Newest ${Math.min(15, hits.length)} shown.`;
   document.getElementById("log").innerHTML = `<thead><tr><th>First heard</th><th>Callsign</th><th>Operator</th><th>Type</th>
     <th class="num">Closest</th><th class="num">Highest</th><th class="num">Heard for</th></tr></thead><tbody>` +
     (rows.length ? rows.map(f => `<tr><td>${fmtDay(f.start)} ${fmtTime(f.start)}</td><td>${csLink(f)}</td><td>${esc(f.info.op)}</td>
       <td>${f.info.type}</td><td class="num">${Math.round(f.closest.dist)} nm</td><td class="num">${ft(Math.max(f.alt0, f.alt1))}</td>
       <td class="num">${f.start + f.dur > NOW ? "in range now" : mins(f.dur)}</td></tr>`).join("")
-      : `<tr><td colspan="7">No flights match "${esc(q)}" in the last 24 hours. Try a callsign like DMO or a type like A359.</td></tr>`) + "</tbody>";
+      : `<tr><td colspan="7">No flights match "${esc(q)}" in this range. Try a callsign like DMO, a type like A359, or a longer range.</td></tr>`) + "</tbody>";
 }
 document.getElementById("q").addEventListener("input", e => renderLog(e.target.value));
-const VISITS = Object.fromEntries(POOL.map(p => [p.callsign, visitsOf(p)]));
 function renderRegularsRare() {
-  const regs = POOL.map(p => ({ p, n: VISITS[p.callsign].filter(f => f.start > NOW - 30 * DAY).length })).sort((a, b) => b.n - a.n).slice(0, 7);
+  const regs = POOL.map(p => ({ p, n: VISITS[p.callsign].filter(f => inRange(f.start)).length })).filter(r => r.n).sort((a, b) => b.n - a.n).slice(0, 7);
   document.getElementById("regulars").innerHTML = "<thead><tr><th>Callsign</th><th>Operator</th><th class='num'>Flights</th><th>Last heard</th></tr></thead><tbody>" +
     regs.map(({ p, n }) => { const last = VISITS[p.callsign][0];
       return `<tr><td>${csLink(last)}</td><td>${esc(p.op)}</td><td class="num">${n}</td><td>${dayName(last.start)}</td></tr>`; }).join("") + "</tbody>";
@@ -734,6 +847,29 @@ function renderRegularsRare() {
     rare.map(p => { const last = VISITS[p.callsign][0];
       return `<tr><td>${csLink(last)}${p.mil ? " <span class='mil'>(military)</span>" : ""}</td><td>${p.type}</td><td class="num">${dayCount(p)}</td><td>${dayName(last.start)}</td></tr>`; }).join("") + "</tbody>";
 }
+
+// ================= header search: every aircraft heard in the last 90 days =================
+const gq = document.getElementById("gq"), gres = document.getElementById("gresults");
+function searchAircraft(q) {
+  q = q.trim().toLowerCase(); if (!q) return [];
+  const fields = p => [p.callsign, p.reg, p.hex, p.type, p.op, TYPES[p.type]].map(s => s.toLowerCase());
+  const exact = p => fields(p).includes(q);
+  // Exact matches first ("C17" is the C-17, not the C172), then the most recently heard.
+  return POOL.filter(p => VISITS[p.callsign].length && fields(p).some(s => s.includes(q)))
+    .sort((a, b) => (exact(b) - exact(a)) || (VISITS[b.callsign][0].start - VISITS[a.callsign][0].start));
+}
+gq.addEventListener("input", () => {
+  const q = gq.value.trim(), hits = searchAircraft(q);
+  gres.hidden = !q;
+  gres.innerHTML = !hits.length ? `<li>Nothing heard in the last 90 days matches "${esc(q)}".</li>`
+    : hits.slice(0, 8).map(p => { const last = VISITS[p.callsign][0];
+        return `<li>${csLink(last)} ${p.type}, ${esc(p.op)}, ${p.reg}. Last heard ${dayName(last.start).toLowerCase() === "today" ? "today" : dayName(last.start)}</li>`; }).join("") +
+      (hits.length > 8 ? `<li>${hits.length - 8} more. Keep typing to narrow it down.</li>` : "");
+});
+document.getElementById("gsearch").addEventListener("submit", e => { e.preventDefault(); const a = gres.querySelector("a"); if (a) location.hash = a.getAttribute("href"); });
+gq.addEventListener("keydown", e => { if (e.key === "Escape") { gq.value = ""; gres.hidden = true; } });
+document.addEventListener("click", e => { if (!e.target.closest("#gsearch")) gres.hidden = true; });
+addEventListener("hashchange", () => { gres.hidden = true; });
 
 // ================= Logbook tab =================
 const lastVisit = cs => VISITS[cs][0];
@@ -816,6 +952,11 @@ function renderDetail(cs, start) {
           <dt>Highest</dt><dd>${ft(top)}</dd>
           <dt>Ground speed</dt><dd>${f.gs} kt</dd>
         </dl>
+        <p class="links">Open ${esc(cs)} in
+          <span class="off" title="Opens your own tar1090 at this aircraft">your tar1090</span>
+          <span class="off" title="globe.adsbexchange.com, by address">ADS-B Exchange</span>
+          <span class="off" title="adsb.lol, by address">adsb.lol</span></p>
+        <p class="sub">In skyledger these open the aircraft by its address (${info.hex}). They're off in the demo, because its aircraft are made up.</p>
       </div>
     </div>
     <div class="grid2" style="margin-top:32px">
@@ -869,7 +1010,7 @@ themeBtn.addEventListener("click", () => { document.documentElement.dataset.them
 function redraw() { drawMainRose(); buildCharts(); buildHeat(); route(); }
 new ResizeObserver(() => { resizeCharts(); drawStack(); drawTypes(); drawAntenna(); }).observe(document.querySelector("main"));
 
-renderFacts(); renderLog(); renderRegularsRare(); renderLogbook(); syncThemeBtn(); redraw();
+renderFacts(); renderLogbook(); syncThemeBtn(); redraw(); renderHistory();
 fetch("map.json").then(r => r.ok ? r.json() : null).then(m => { if (m) { MAP = m; redraw(); } }).catch(() => {});
 </script>
 </body>
