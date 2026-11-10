@@ -65,7 +65,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, lookup fu
 		_, _ = fmt.Fprintf(stderr, "skyledger: unknown command '%s'\n\n%s", args[0], usage)
 		return 2
 	}
-	settings, err := config.FromEnv(lookup)
+	settings, err := config.FromEnv(lookup, args[0] != "web")
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "skyledger: %v\n", err)
 		return 2

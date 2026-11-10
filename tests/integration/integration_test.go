@@ -118,7 +118,7 @@ func TestPipeline(t *testing.T) {
 	url, f := demoFeed(t)
 	london, _ := time.LoadLocation("Europe/London")
 	s := config.Settings{Tar1090URL: url, TZ: london, Poll: 10 * time.Second, RetentionDays: 30,
-		GrafanaDBPassword: "grafana-test"}
+		ReadOnlyDBPassword: "grafana-test"}
 
 	step := func(name string, fn func(t *testing.T)) {
 		if !t.Run(name, fn) {

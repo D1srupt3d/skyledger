@@ -19,7 +19,7 @@ check() {
 }
 
 check "private key" '-----BEGIN [A-Z ]*PRIVATE KEY-----'
-check "filled-in password in .env.example" '^(POSTGRES|GRAFANA_DB|GRAFANA_ADMIN)_PASSWORD=.+'
+check "filled-in password in .env.example" '^(POSTGRES|GRAFANA_DB|READONLY_DB|GRAFANA_ADMIN)_PASSWORD=.+'
 if files | grep -qx '.env'; then
     echo "scrub: .env is tracked"
     fail=1

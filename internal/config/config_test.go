@@ -20,7 +20,7 @@ func with(extra map[string]string) map[string]string {
 
 func mustLoad(t *testing.T, m map[string]string) Settings {
 	t.Helper()
-	s, err := FromEnv(env(m))
+	s, err := FromEnv(env(m), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,8 +71,8 @@ func TestOverrides(t *testing.T) {
 	if s.HistoryStart == nil || !s.HistoryStart.Equal(time.Date(2025, 1, 2, 0, 0, 0, 0, time.UTC)) {
 		t.Error(s.HistoryStart)
 	}
-	if s.GrafanaDBPassword != "g" {
-		t.Error("grafana password not read")
+	if s.ReadOnlyDBPassword != "g" {
+		t.Error("read-only password not read from GRAFANA_DB_PASSWORD")
 	}
 }
 
@@ -109,7 +109,7 @@ func TestInvalid(t *testing.T) {
 		{with(map[string]string{"HISTORY_START": "last year"}), "HISTORY_START"},
 	}
 	for _, c := range cases {
-		_, err := FromEnv(env(c.env))
+		_, err := FromEnv(env(c.env), true)
 		if err == nil || !strings.Contains(err.Error(), c.message) {
 			t.Errorf("%v: got %v, want %q", c.env, err, c.message)
 		}
@@ -120,5 +120,53 @@ func TestBlankValuesMeanDefault(t *testing.T) {
 	s := mustLoad(t, with(map[string]string{"TZ": "  ", "RETENTION_DAYS": ""}))
 	if s.RetentionDays != 90 || s.TZ.String() != "UTC" {
 		t.Errorf("%+v", s)
+	}
+}
+
+func TestReadOnlyPasswordPrimaryName(t *testing.T) {
+	if s := mustLoad(t, with(map[string]string{"READONLY_DB_PASSWORD": "a"})); s.ReadOnlyDBPassword != "a" {
+		t.Errorf("got %q", s.ReadOnlyDBPassword)
+	}
+}
+
+func TestReadOnlyPasswordLegacyAlias(t *testing.T) {
+	if s := mustLoad(t, with(map[string]string{"GRAFANA_DB_PASSWORD": "b"})); s.ReadOnlyDBPassword != "b" {
+		t.Errorf("got %q", s.ReadOnlyDBPassword)
+	}
+}
+
+func TestReadOnlyPasswordBothSame(t *testing.T) {
+	s := mustLoad(t, with(map[string]string{"READONLY_DB_PASSWORD": "c", "GRAFANA_DB_PASSWORD": "c"}))
+	if s.ReadOnlyDBPassword != "c" {
+		t.Errorf("got %q", s.ReadOnlyDBPassword)
+	}
+}
+
+func TestReadOnlyPasswordConflict(t *testing.T) {
+	_, err := FromEnv(env(with(map[string]string{
+		"READONLY_DB_PASSWORD": "s3cret-one", "GRAFANA_DB_PASSWORD": "s3cret-two"})), true)
+	if err == nil {
+		t.Fatal("no error for two different passwords")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "READONLY_DB_PASSWORD") || !strings.Contains(msg, "GRAFANA_DB_PASSWORD") {
+		t.Errorf("error should name both variables: %s", msg)
+	}
+	if strings.Contains(msg, "s3cret") {
+		t.Errorf("error leaks a password: %s", msg)
+	}
+}
+
+func TestTar1090OptionalWithoutFeed(t *testing.T) {
+	s, err := FromEnv(env(map[string]string{"POSTGRES_PASSWORD": "pw"}), false)
+	if err != nil || s.Tar1090URL != "" {
+		t.Errorf("got %q, %v", s.Tar1090URL, err)
+	}
+	if _, err := FromEnv(env(map[string]string{"POSTGRES_PASSWORD": "pw", "TAR1090_URL": "receiver/"}), false); err == nil {
+		t.Error("a set TAR1090_URL should still be validated")
+	}
+	if _, err := FromEnv(env(map[string]string{"POSTGRES_PASSWORD": "pw"}), true); err == nil ||
+		!strings.Contains(err.Error(), "TAR1090_URL is required") {
+		t.Errorf("needFeed: %v", err)
 	}
 }

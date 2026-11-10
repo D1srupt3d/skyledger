@@ -146,9 +146,9 @@ func ApplySettings(ctx context.Context, conn *pgx.Conn, s config.Settings) error
 			}
 			slog.Info("live position retention set", "days", s.RetentionDays)
 		}
-		if s.GrafanaDBPassword != "" {
+		if s.ReadOnlyDBPassword != "" {
 			// Utility statements can't take bind parameters, so the password is quoted as a literal. Never logged.
-			lit, err := conn.PgConn().EscapeString(s.GrafanaDBPassword)
+			lit, err := conn.PgConn().EscapeString(s.ReadOnlyDBPassword)
 			if err != nil {
 				return err
 			}
