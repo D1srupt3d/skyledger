@@ -8,7 +8,7 @@
 | `migrate` | `skyledger migrate` | once at start; the others wait for it |
 | `ingest` | `skyledger ingest` | always: polls `aircraft.json` every 10 s, `stats.json` every minute |
 | `history` | `skyledger history` | always: a run at start, then daily at `HISTORY_AT` |
-| `grafana` | Grafana with provisioned datasource, dashboards and alerts | profile `grafana` |
+| `grafana` | Grafana with provisioned datasource and dashboards | profile `grafana` |
 | `demo-feed` | `skyledger demo-feed` | profile `demo` |
 
 All skyledger containers use one image and differ only in the command. They only read from the receiver.

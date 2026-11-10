@@ -16,6 +16,6 @@ skyledger archives exactly one receiver (`TAR1090_URL`). Supporting several woul
 
 - a receiver id on the per-receiver tables (`positions`, `receiver_stats`, `history_positions`, `history_files`, `daily_stats`, `history_outline`) and on the `flights` view, in a new migration;
 - `ingest` and `history` polling a list of URLs instead of one;
-- a receiver variable on the dashboards and alerts.
+- a receiver variable on the dashboards.
 
 `aircraft_db` and `airlines` are shared and wouldn't change. The maintainer runs a single adsb.im receiver, so this waits for someone who needs it.

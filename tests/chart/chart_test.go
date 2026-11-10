@@ -584,3 +584,18 @@ func TestNotesRender(t *testing.T) {
 	ok(t, !strings.Contains(notes, "port-forward") && !strings.Contains(notes, "delete secret"), "notes:\n%s", notes)
 	ok(t, strings.Contains(notes, "delete pvc data-skyledger-timescaledb-0"), "notes:\n%s", notes)
 }
+
+// skyledger ships no alert rules. The alerting file only deletes the four that
+// earlier versions provisioned: Grafana keeps provisioned rules after their file is gone.
+func TestAlertingOnlyDeletesTheOldRules(t *testing.T) {
+	a := readYAML(t, filepath.Join(chart, "grafana", "alerting", "skyledger.yml"))
+	if _, ok := a["groups"]; ok {
+		t.Error("alerting file defines rule groups again")
+	}
+	var uids []string
+	for _, r := range a["deleteRules"].([]any) {
+		uids = append(uids, r.(obj)["uid"].(string))
+	}
+	slices.Sort(uids)
+	eq(t, strings.Join(uids, ","), "skyledger-gps-degraded,skyledger-import-stale,skyledger-no-messages,skyledger-receiver-down")
+}
