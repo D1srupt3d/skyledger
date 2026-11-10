@@ -13,7 +13,6 @@ import (
 	neturl "net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +27,7 @@ import (
 	"github.com/D1srupt3d/skyledger/internal/history"
 	"github.com/D1srupt3d/skyledger/internal/ingest"
 	"github.com/D1srupt3d/skyledger/internal/migrate"
+	"github.com/D1srupt3d/skyledger/internal/queries"
 	"github.com/D1srupt3d/skyledger/internal/probe"
 )
 
@@ -295,22 +295,17 @@ func TestPipeline(t *testing.T) {
 
 	step("every dashboard query runs", func(t *testing.T) {
 		now := time.Now().UTC()
-		frm, to := "'"+now.AddDate(0, 0, -30).Format(time.RFC3339Nano)+"'", "'"+now.Format(time.RFC3339Nano)+"'"
-		filter := regexp.MustCompile(`\$__timeFilter\(([\w.]+)\)`)
-		group := regexp.MustCompile(`\$__timeGroupAlias\(([\w.]+), *\$__interval(?:, *NULL)?\)`)
-		queries := dashboards.AllQueries()
-		if len(queries) <= 30 {
-			t.Fatalf("%d queries", len(queries))
+		all := dashboards.AllQueries()
+		if len(all) <= 30 {
+			t.Fatalf("%d queries", len(all))
 		}
-		for name, sql := range queries {
-			e := filter.ReplaceAllString(sql, "${1} BETWEEN "+frm+" AND "+to)
-			e = group.ReplaceAllString(e, "time_bucket('5 minutes', ${1}) AS time")
-			e = strings.NewReplacer("$__timeFrom()", frm, "$__timeTo()", to).Replace(e)
-			if strings.Contains(e, "$__") {
-				t.Errorf("%s: macro left in %s", name, e)
+		for name, sql := range all {
+			e, args, err := queries.Expand(sql, now.AddDate(0, 0, -30), now, "5 minutes")
+			if err != nil {
+				t.Errorf("%s: %v", name, err)
 				continue
 			}
-			rows, err := grafana.Query(ctx, e)
+			rows, err := grafana.Query(ctx, e, args...)
 			if err == nil {
 				for rows.Next() {
 				}
