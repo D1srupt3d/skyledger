@@ -442,7 +442,7 @@ func TestBundledGrafana(t *testing.T) {
 	eq(t, get(t, pod, "securityContext", "runAsUser"), 472)
 	eq(t, get(t, pod, "securityContext", "fsGroup"), 472)
 	c := getMap(t, pod, "containers", 0)
-	eq(t, c["image"], "grafana/grafana:13.2.2")
+	eq(t, c["image"], "grafana/grafana:13.3.0")
 	eq(t, get(t, env(t, c), "GF_SECURITY_ADMIN_PASSWORD", "valueFrom", "secretKeyRef", "key"), "GRAFANA_ADMIN_PASSWORD")
 	eq(t, get(t, env(t, c), "GRAFANA_DB_PASSWORD", "valueFrom", "secretKeyRef", "key"), "GRAFANA_DB_PASSWORD")
 	eq(t, get(t, c, "readinessProbe", "httpGet", "path"), "/api/health")

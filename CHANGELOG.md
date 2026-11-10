@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Grafana 13.3.0 (was 13.2.2), in Compose and the Helm chart.
+
 ## 0.4.0
 
 - skyledger is now written in Go instead of Python. Nothing changes for users: the same commands, settings, database schema, image name and health checks. The image is about 30 MB, and the arm64 build is cross-compiled. Developers: see the README's Development section (`go test ./...`, `go run ./tools/gendashboards`).
