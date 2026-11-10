@@ -276,7 +276,7 @@ func Run(ctx context.Context, s config.Settings) error {
 		}
 	}()
 	var lastStats time.Time
-	slog.Info("polling", "url", f.Aircraft(), "every", s.Poll)
+	slog.Info("polling", "url", feed.Redact(f.Aircraft()), "every", s.Poll)
 	for {
 		started := time.Now()
 		withStats := lastStats.IsZero() || started.Sub(lastStats) >= StatsEvery

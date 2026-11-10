@@ -65,10 +65,10 @@ func (f *Feed) Get(ctx context.Context, u string) ([]byte, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("%s: %w", u, ErrNotFound)
+		return nil, fmt.Errorf("%s: %w", Redact(u), ErrNotFound)
 	}
 	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("%s: HTTP %d", u, resp.StatusCode)
+		return nil, fmt.Errorf("%s: HTTP %d", Redact(u), resp.StatusCode)
 	}
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -83,6 +83,15 @@ func (f *Feed) GetJSON(ctx context.Context, u string, v any) error {
 		return err
 	}
 	return json.Unmarshal(raw, v)
+}
+
+// Redact hides the password of a URL like http://user:pass@receiver/, for logs and errors.
+func Redact(u string) string {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return "(unparseable URL)"
+	}
+	return parsed.Redacted()
 }
 
 // Gunzip returns raw decompressed if it starts with the gzip magic bytes, else unchanged.

@@ -123,3 +123,21 @@ func TestOtherErrorsPropagate(t *testing.T) {
 		t.Error("bad url: want an error")
 	}
 }
+
+// A receiver behind basic auth puts its password in TAR1090_URL: no error may print it.
+func TestErrorsHideThePassword(t *testing.T) {
+	base := strings.Replace(server(t), "http://", "http://user:s3cret@", 1)
+	f := mustNew(t, base+"/tar1090/")
+	for _, u := range []string{f.Stats(), base + "/boom", "http://user:s3cret@127.0.0.1:1/"} {
+		_, err := f.Get(context.Background(), u)
+		if err == nil || strings.Contains(err.Error(), "s3cret") {
+			t.Errorf("%s: %v", u, err)
+		}
+	}
+	if got := Redact("http://user:s3cret@r/data/aircraft.json"); got != "http://user:xxxxx@r/data/aircraft.json" {
+		t.Error(got)
+	}
+	if got := Redact("http://r/%zz"); got != "(unparseable URL)" {
+		t.Error(got)
+	}
+}

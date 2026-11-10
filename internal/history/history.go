@@ -252,7 +252,7 @@ func RunOnce(ctx context.Context, conn *pgx.Conn, f *feed.Feed, s config.Setting
 		if found == nil {
 			slog.Warn("no heatmap history found. Enable readsb's heatmap (--heatmap 30 with "+
 				"--write-globe-history; ultrafeeder: see the README). Live data still works; "+
-				"checking again next run.", "url", f.URL("globe_history/"))
+				"checking again next run.", "url", feed.Redact(f.URL("globe_history/")))
 			return Result{}, nil
 		}
 		firstDay = *found
