@@ -1,4 +1,4 @@
-# skyledger: one image, roles as subcommands (skyledger migrate|ingest|history|demo-feed).
+# skyledger: one image, roles as subcommands (skyledger migrate|ingest|history|web|demo-feed).
 # Runs on the build machine and cross-compiles, so the arm64 image needs no emulation.
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine3.24 AS build
 WORKDIR /src
