@@ -38,6 +38,8 @@ img { max-width: 100%; height: auto; display: block; }
 .wrap { max-width: 72rem; margin: 0 auto; padding: 0 1rem; }
 header.top { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 0; }
 header.top .name { font-weight: 700; font-size: 1.125rem; color: var(--ink); text-decoration: none; }
+.try { padding-left: 1.1rem; max-width: 46rem; }
+.try li { margin: .35rem 0; }
 
 section { padding: 4rem 0; border-top: 1px solid var(--line); }
 h2 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 1.5rem; }
