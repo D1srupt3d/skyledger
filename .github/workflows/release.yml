@@ -20,11 +20,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Tag matches the package and chart versions
         run: |
-          version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
-          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but pyproject says $version"; exit 1; }
+          version=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' internal/version/version.go)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME but internal/version says $version"; exit 1; }
           for field in version appVersion; do
             chart=$(grep -m1 "^$field:" charts/skyledger/Chart.yaml | awk '{print $2}' | tr -d '"')
-            test "$chart" = "$version" || { echo "Chart.yaml $field is $chart, pyproject says $version"; exit 1; }
+            test "$chart" = "$version" || { echo "Chart.yaml $field is $chart, internal/version says $version"; exit 1; }
           done
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1

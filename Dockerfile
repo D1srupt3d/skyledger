@@ -1,19 +1,19 @@
 # skyledger: one image, roles as subcommands (skyledger migrate|ingest|history|demo-feed).
-FROM python:3.14-slim AS build
-COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /bin/uv
-WORKDIR /app
-ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
-# Dependencies first, so code changes don't reinstall them.
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
-COPY README.md LICENSE ./
-COPY src ./src
-RUN uv sync --frozen --no-dev --no-editable
+# Runs on the build machine and cross-compiles, so the arm64 image needs no emulation.
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine3.24 AS build
+WORKDIR /src
+# Dependencies first, so code changes don't download them again.
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd ./cmd
+COPY internal ./internal
+ARG TARGETOS TARGETARCH
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /skyledger ./cmd/skyledger
 
-FROM python:3.14-slim
-RUN useradd --system --uid 10001 --no-create-home skyledger
-COPY --from=build /app/.venv /app/.venv
-ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1
+# Alpine rather than an empty image: the health checks run `sh -c 'find ...'`.
+FROM alpine:3.24
+RUN adduser -S -u 10001 -H skyledger
+COPY --from=build /skyledger /usr/local/bin/skyledger
 USER 10001
 ENTRYPOINT ["skyledger"]
 CMD ["--help"]
