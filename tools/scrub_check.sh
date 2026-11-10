@@ -7,7 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 fail=0
-files() { git ls-files --cached --others --exclude-standard | grep -v -e '^uv.lock$' -e '^tools/scrub_check.sh$'; }
+files() { git ls-files --cached --others --exclude-standard | grep -v -e '^go.sum$' -e '^tools/scrub_check.sh$'; }
 check() {
     local label=$1 pattern=$2 hits
     hits=$(files | xargs -d '\n' grep -nIE -e "$pattern" -- 2>/dev/null || true)
