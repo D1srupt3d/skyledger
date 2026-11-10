@@ -21,6 +21,7 @@
   --ink-2: #4a5a66;          /* secondary text */
   --ink-3: #6f7d86;          /* tertiary, axis labels */
   --rule: #c6d1c9;           /* rings, grid */
+  --water: #d5e4ec; --land: #eef2ec; --coast: #8ea2ad; --border: #9aa9b2; --city: #4a5a66;
   --airspace: #1f5aa6;       /* class B blue: series 1, today's reach */
   --airway: #b3266e;         /* airway magenta: series 2, all-time outline */
   --alt-1: #6da7ec; --alt-2: #2a78d6; --alt-3: #1c5cab; --alt-4: #0d366b;
@@ -33,6 +34,7 @@
     color-scheme: dark;
     --paper: #122030; --paper-2: #1a2b3d; --ink: #e7edf2; --ink-2: #a9b8c4; --ink-3: #8394a2;
     --rule: #2c3f52; --airspace: #5b93e0; --airway: #e0619d;
+    --water: #0c1724; --land: #172a3d; --coast: #3f5a72; --border: #3a5168; --city: #a9b8c4;
     --alt-1: #184f95; --alt-2: #2a78d6; --alt-3: #6da7ec; --alt-4: #b7d3f6;
     --heat-0: #1a2b3d; --heat-1: #184f95; --heat-2: #2a78d6; --heat-3: #6da7ec; --heat-4: #cde2fb;
     --focus: #8fb8f0;
@@ -42,6 +44,7 @@
   color-scheme: dark;
   --paper: #122030; --paper-2: #1a2b3d; --ink: #e7edf2; --ink-2: #a9b8c4; --ink-3: #8394a2;
   --rule: #2c3f52; --airspace: #5b93e0; --airway: #e0619d;
+  --water: #0c1724; --land: #172a3d; --coast: #3f5a72; --border: #3a5168; --city: #a9b8c4;
   --alt-1: #184f95; --alt-2: #2a78d6; --alt-3: #6da7ec; --alt-4: #b7d3f6;
   --heat-0: #1a2b3d; --heat-1: #184f95; --heat-2: #2a78d6; --heat-3: #6da7ec; --heat-4: #cde2fb;
   --focus: #8fb8f0;
@@ -92,6 +95,11 @@ h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; line-height: 1.2; }
 .rose { width: 100%; height: auto; display: block; max-width: 720px; }
 .rose text { font-family: "Barlow Condensed", sans-serif; fill: var(--ink-3); }
 .rose .ring { fill: none; stroke: var(--rule); stroke-width: 1; }
+.rose .water { fill: var(--water); }
+.rose .land { fill: var(--land); stroke: var(--coast); stroke-width: 0.9; stroke-linejoin: round; fill-rule: evenodd; }
+.rose .border { fill: none; stroke: var(--border); stroke-width: 1; stroke-dasharray: 5 3; }
+.rose .city { fill: var(--city); }
+.rose .city-label { fill: var(--city); font-family: "Barlow", sans-serif; font-size: 12px; paint-order: stroke; stroke: var(--land); stroke-width: 3px; }
 .rose .tick { stroke: var(--ink-3); }
 .rose .card-pt { fill: var(--ink); font-weight: 700; }
 .rose .ever { fill: url(#hatch); stroke: var(--airway); stroke-width: 2; stroke-linejoin: round; }
@@ -317,7 +325,7 @@ tr.current td { background: var(--paper-2); }
   <!-- FLIGHT / AIRCRAFT PAGE -->
   <section id="p-detail" hidden aria-live="polite"></section>
 
-  <p class="proto">A preview of the web UI planned for skyledger; today it ships with Grafana dashboards. Everything here is simulated: a made-up receiver in the North Atlantic and made-up aircraft and airlines, like skyledger's built-in demo. <a href="../">Back to skyledger</a>.</p>
+  <p class="proto">A preview of the web UI planned for skyledger; today it ships with Grafana dashboards. Everything here is simulated: a made-up receiver over the English Channel and made-up aircraft and airlines. Map data: Natural Earth (public domain). <a href="../">Back to skyledger</a>.</p>
 </main>
 <div id="tip" role="tooltip"></div>
 
@@ -479,7 +487,9 @@ function roseBase(svg, { ever: showEver = "full", today: showToday = true } = {}
   svg.innerHTML = "";
   const defs = svgEl("defs"), pat = svgEl("pattern", { id: svg.id + "-hatch", width: 7, height: 7, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" });
   pat.append(svgEl("line", { x1: 0, y1: 0, x2: 0, y2: 7, stroke: css("--airway"), "stroke-width": 1.2, "stroke-opacity": 0.35 }));
-  defs.append(pat); svg.append(defs);
+  const clip = svgEl("clipPath", { id: svg.id + "-clip" }); clip.append(svgEl("circle", { cx: C, cy: C, r: R }));
+  defs.append(pat, clip); svg.append(defs);
+  if (MAP) drawMap(svg, svg.id + "-clip");
   for (let nm = 50; nm <= 250; nm += 50) {
     svg.append(svgEl("circle", { class: "ring", cx: C, cy: C, r: nm / MAXNM * R }));
     const [x, y] = xy(0, nm); svg.append(svgEl("text", { x: x + 4, y: y + 13, "font-size": 12 }, nm));
@@ -501,6 +511,27 @@ function roseBase(svg, { ever: showEver = "full", today: showToday = true } = {}
   const g = svgEl("g"); svg.append(g);
   svg.append(svgEl("circle", { class: "rx", cx: C, cy: C, r: 5 }));
   return g;
+}
+
+// The map: Natural Earth land, borders and cities, already projected to nm east and north of the
+// receiver (azimuthal equidistant), so distance and bearing match the rings exactly.
+let MAP = null;
+const mapPath = rings => rings.map(r => "M" + r.map(([e, n]) => xy(...fromEN(e, n)).map(v => v.toFixed(1)).join(",")).join("L")).join("");
+function drawMap(svg, clipId) {
+  const g = svgEl("g", { "clip-path": `url(#${clipId})`, "aria-hidden": "true" });
+  g.append(svgEl("circle", { class: "water", cx: C, cy: C, r: R }));
+  g.append(svgEl("path", { class: "land", d: mapPath(MAP.land.map(r => r.concat([r[0]]))) }));
+  g.append(svgEl("path", { class: "border", d: mapPath(MAP.borders) }));
+  const placed = [];
+  for (const c of MAP.cities) {
+    const [brg, dist] = fromEN(c.e, c.n);
+    if (dist > MAXNM - 12 || placed.some(([e, n]) => Math.hypot(e - c.e, n - c.n) < 28)) continue; // keep labels apart
+    placed.push([c.e, c.n]);
+    const [x, y] = xy(brg, dist);
+    g.append(svgEl("rect", { class: "city", x: x - 2.5, y: y - 2.5, width: 5, height: 5 }));
+    g.append(svgEl("text", { class: "city-label", x: x + 6, y: y + 4 }, c.name));
+  }
+  svg.append(g);
 }
 
 // Main rose: aircraft at time t, with 5-minute trails. replayT null means live.
@@ -835,6 +866,7 @@ function redraw() { drawMainRose(); buildCharts(); buildHeat(); route(); }
 new ResizeObserver(() => { resizeCharts(); drawStack(); drawTypes(); drawAntenna(); }).observe(document.querySelector("main"));
 
 renderFacts(); renderLog(); renderRegularsRare(); renderLogbook(); syncThemeBtn(); redraw();
+fetch("map.json").then(r => r.ok ? r.json() : null).then(m => { if (m) { MAP = m; redraw(); } }).catch(() => {});
 </script>
 </body>
 </html>
