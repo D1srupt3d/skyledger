@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- skyledger is now written in Go instead of Python. Nothing changes for users: the same commands, settings, database schema, image name and health checks. The image is about 30 MB, and the arm64 build is cross-compiled. Developers: see the README's Development section (`go test ./...`, `go run ./tools/gendashboards`).
+
 ## 0.3.5
 
 - Live positions: each history run (at start and nightly) fills gaps in live positions left by an ingest or database outage with the receiver's own history, so the live panels show what was heard meanwhile. Filled stretches have one position per aircraft per minute and no wind, temperature, signal or GPS accuracy data, so those panels stay empty there. Gaps from the current UTC day fill after the next day's import.

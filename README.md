@@ -211,14 +211,17 @@ Database changes are applied automatically by the `migrate` container. Downgrade
 
 ## Development
 
+skyledger is written in Go (see `go.mod` for the version).
+
 ```bash
-uv sync
-uv run pytest                         # unit tests
-SKYLEDGER_TEST_DSN=postgresql://skyledger:test@localhost:5432/skyledger uv run pytest   # plus integration
-uv run python tools/gen_dashboards.py # regenerate dashboards after editing the generator
+go test ./...                         # unit tests
+SKYLEDGER_TEST_DSN=postgresql://skyledger:test@localhost:5432/skyledger go test ./...   # plus integration
+SKYLEDGER_TEST_DSN=... tools/coverage.sh   # everything, failing below 80% coverage for any package
+go run ./tools/gendashboards          # regenerate dashboards after editing internal/dashboards
+golangci-lint run ./...
 ```
 
-The two integration test files need `SKYLEDGER_TEST_DSN` to be a superuser on an empty TimescaleDB (community edition), such as `timescale/timescaledb-ha`, whose bootstrap superuser is the `POSTGRES_USER` you start it with (`skyledger` in the DSN above, password `test`): the tenant test creates roles and databases. Chart tests need `helm` 4 on PATH (`uv run pytest tests/unit/test_chart.py`); CI also installs the chart on kind. CI runs everything, including a real TimescaleDB.
+The integration tests need `SKYLEDGER_TEST_DSN` to be a superuser on a TimescaleDB (community edition) server, such as `timescale/timescaledb-ha`, whose bootstrap superuser is the `POSTGRES_USER` you start it with (`skyledger` in the DSN above, password `test`): they create their own databases and roles, so reruns start clean. Chart tests need `helm` 4 on PATH (`go test ./tests/chart/`); CI also installs the chart on kind. CI runs everything, including a real TimescaleDB.
 
 ## Credits
 

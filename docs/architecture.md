@@ -58,4 +58,4 @@ A position counts toward the outline only if the same aircraft's previous or nex
 
 ## Dashboards
 
-`tools/gen_dashboards.py` builds all panels once and assigns them by title to three dashboards (`skyledger-overview`, `skyledger-receiver`, `skyledger-history`). Local-time bucketing reads the configured time zone from `db_meta`, so nothing in the JSON is site-specific. Maps fit to their data; the coverage heatmap also carries the outline as a markers layer because Grafana can't compute an extent from a heatmap layer alone. CI fails if the committed JSON differs from what the generator produces.
+`tools/gendashboards` (code in `internal/dashboards`) builds all panels once and assigns them by title to three dashboards (`skyledger-overview`, `skyledger-receiver`, `skyledger-history`). Local-time bucketing reads the configured time zone from `db_meta`, so nothing in the JSON is site-specific. Maps fit to their data; the coverage heatmap also carries the outline as a markers layer because Grafana can't compute an extent from a heatmap layer alone. CI fails if the committed JSON differs from what the generator produces.
