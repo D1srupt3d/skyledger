@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - skyledger is now written in Go instead of Python. Nothing changes for users: the same commands, settings, database schema, image name and health checks. The image is about 30 MB, and the arm64 build is cross-compiled. Developers: see the README's Development section (`go test ./...`, `go run ./tools/gendashboards`).
+- Compose: the default image tag is now `0.4`. If you set `SKYLEDGER_VERSION=0.3` in `.env`, change it to `0.4` to upgrade.
+- A password in `TAR1090_URL` (a receiver behind basic auth) is no longer printed in logs and error messages.
+- `ingest` and `history` stop cleanly on SIGTERM (`docker compose down`, a pod being replaced) instead of being killed.
 
 ## 0.3.5
 
