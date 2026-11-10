@@ -1,0 +1,91 @@
+{{- if .Values.web.enabled }}
+{{- $name := printf "%s-web" (include "skyledger.fullname" .) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "skyledger.selector" (dict "root" . "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "skyledger.selector" (dict "root" . "component" "web") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.existingSecret }}
+        checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "skyledger.podSecurity" (dict "uid" 10001) | nindent 8 }}
+      # No migrate init container: web only reads, and ingest and history migrate.
+      containers:
+        - name: web
+          image: {{ include "skyledger.image" . }}
+          args: [web]
+          envFrom:
+            - configMapRef:
+                name: {{ include "skyledger.fullname" . }}
+          env:
+            {{- include "skyledger.secretEnv" (dict "root" . "key" "POSTGRES_PASSWORD") | nindent 12 }}
+            # The read-only login's password, under the Secret's existing key.
+            - name: READONLY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skyledger.secretName" . }}
+                  key: GRAFANA_DB_PASSWORD
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 1200
+          # healthz: the process is up. readyz: the database answers.
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            periodSeconds: 10
+          securityContext:
+            {{- include "skyledger.containerSecurity" . | nindent 12 }}
+          {{- with .Values.resources.web }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "skyledger.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  type: {{ .Values.web.service.type }}
+  selector:
+    {{- include "skyledger.selector" (dict "root" . "component" "web") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.web.service.port }}
+      targetPort: http
+{{- end }}

@@ -583,6 +583,9 @@ func TestNotesRender(t *testing.T) {
 	}
 	ok(t, !strings.Contains(notes, "port-forward") && !strings.Contains(notes, "delete secret"), "notes:\n%s", notes)
 	ok(t, strings.Contains(notes, "delete pvc data-skyledger-timescaledb-0"), "notes:\n%s", notes)
+	ok(t, !strings.Contains(out, "svc/skyledger-web"), "web is off by default:\n%s", out)
+	web := install(rx, "web.enabled=true")
+	ok(t, strings.Contains(web, "port-forward svc/skyledger-web 1200:1200"), "web notes:\n%s", web)
 }
 
 // skyledger ships no alert rules. The alerting file only deletes the four that
@@ -598,4 +601,53 @@ func TestAlertingOnlyDeletesTheOldRules(t *testing.T) {
 	}
 	slices.Sort(uids)
 	eq(t, strings.Join(uids, ","), "skyledger-gps-degraded,skyledger-import-stale,skyledger-no-messages,skyledger-receiver-down")
+}
+
+func TestNoWebByDefault(t *testing.T) {
+	objs := objects(t, render(t, rx))
+	_, dep := objs[key{"Deployment", "skyledger-web"}]
+	_, svc := objs[key{"Service", "skyledger-web"}]
+	ok(t, !dep && !svc, "web should be off by default")
+}
+
+func TestWeb(t *testing.T) {
+	objs := objects(t, render(t, rx, "web.enabled=true"))
+	dep := objs[key{"Deployment", "skyledger-web"}]
+	eq(t, get(t, dep, "spec", "replicas"), 1)
+	pod := getMap(t, dep, "spec", "template", "spec")
+	eq(t, pod["automountServiceAccountToken"], false)
+	eq(t, get(t, pod, "securityContext", "runAsNonRoot"), true)
+	eq(t, get(t, pod, "securityContext", "runAsUser"), 10001)
+	_, inits := pod["initContainers"]
+	ok(t, !inits, "web only reads: no migrate init container")
+	c := getMap(t, pod, "containers", 0)
+	eq(t, c["image"], "ghcr.io/d1srupt3d/skyledger:"+version.Version)
+	eq(t, c["args"], []any{"web"})
+	sc := getMap(t, c, "securityContext")
+	eq(t, sc["allowPrivilegeEscalation"], false)
+	eq(t, sc["readOnlyRootFilesystem"], true)
+	eq(t, get(t, sc, "capabilities", "drop"), []any{"ALL"})
+	eq(t, get(t, c, "ports", 0, "containerPort"), 1200)
+	eq(t, get(t, c, "livenessProbe", "httpGet", "path"), "/healthz")
+	eq(t, get(t, c, "readinessProbe", "httpGet", "path"), "/readyz")
+	// The secret keeps its GRAFANA_DB_PASSWORD key, so existingSecret users need nothing new.
+	e := env(t, c)
+	eq(t, get(t, e, "READONLY_DB_PASSWORD", "valueFrom", "secretKeyRef", "key"), "GRAFANA_DB_PASSWORD")
+	eq(t, get(t, e, "POSTGRES_PASSWORD", "valueFrom", "secretKeyRef", "key"), "POSTGRES_PASSWORD")
+	ann := getMap(t, dep, "spec", "template", "metadata", "annotations")
+	_, cfg := ann["checksum/config"]
+	_, sec := ann["checksum/secret"]
+	ok(t, cfg && sec, "missing checksum annotations: %v", ann)
+	svc := objs[key{"Service", "skyledger-web"}]
+	eq(t, get(t, svc, "spec", "type"), "ClusterIP")
+	eq(t, get(t, svc, "spec", "selector"), get(t, dep, "spec", "template", "metadata", "labels"))
+	eq(t, get(t, svc, "spec", "ports", 0, "port"), 1200)
+	eq(t, get(t, svc, "spec", "ports", 0, "targetPort"), "http")
+}
+
+func TestWebServiceOptions(t *testing.T) {
+	objs := objects(t, render(t, rx, "web.enabled=true", "web.service.type=LoadBalancer", "web.service.port=80"))
+	svc := objs[key{"Service", "skyledger-web"}]
+	eq(t, get(t, svc, "spec", "type"), "LoadBalancer")
+	eq(t, get(t, svc, "spec", "ports", 0, "port"), 80)
 }

@@ -9,6 +9,12 @@ Open Grafana:
   then http://localhost:3000 as admin, password:
   kubectl -n {{ .Release.Namespace }} get secret {{ include "skyledger.secretName" . }} -o jsonpath='{.data.GRAFANA_ADMIN_PASSWORD}' | base64 -d
 {{- end }}
+{{- if .Values.web.enabled }}
+
+Open the web UI (preview, no login: keep it on your LAN or VPN):
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "skyledger.fullname" . }}-web 1200:{{ .Values.web.service.port }}
+  then http://localhost:1200
+{{- end }}
 {{- if not .Values.existingSecret }}
 
 Passwords were generated into Secret {{ include "skyledger.fullname" . }} and are kept across

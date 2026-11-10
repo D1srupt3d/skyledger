@@ -53,14 +53,22 @@ grafana:
   # "" = disable for the bundled database (in-cluster), require for your own.
   datasourceSslmode: ""
 
+# The web UI (preview; Grafana has the dashboards for now). No login: keep it
+# on your LAN or VPN, or put an auth proxy in front.
+web:
+  enabled: false
+  service:
+    type: ClusterIP
+    port: 1200
+
 # A synthetic receiver for trying skyledger without one. tar1090Url then
 # defaults to it.
 demo:
   enabled: false
 
 # Name of a Secret you manage (ExternalSecrets, SOPS, ...). Needed keys:
-# POSTGRES_PASSWORD always; GRAFANA_DB_PASSWORD with the bundled database or
-# Grafana; GRAFANA_ADMIN_PASSWORD with the bundled Grafana.
+# POSTGRES_PASSWORD always; GRAFANA_DB_PASSWORD (the read-only login) with the
+# bundled database, Grafana or web; GRAFANA_ADMIN_PASSWORD with the bundled Grafana.
 # ArgoCD, Flux and `helm template` render offline, so the generated Secret
 # would get new passwords on every render: set this there.
 existingSecret: ""
@@ -71,9 +79,10 @@ resources:
   history: {}
   timescaledb: {}
   grafana: {}
+  web: {}
   demo: {}
 
-# Added to ingest, history and their migrate init containers, e.g. a CA
+# Added to ingest, history, their migrate init containers and web, e.g. a CA
 # bundle for an HTTPS tar1090:
 #   extraEnv: [{name: SSL_CERT_FILE, value: /etc/ca/ca.crt}]
 #   extraVolumes: [{name: ca, configMap: {name: my-ca}}]
