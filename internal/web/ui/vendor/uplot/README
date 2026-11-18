@@ -1,0 +1,12 @@
+uPlot 1.6.31 (MIT, see LICENSE), vendored so the UI works offline.
+
+Sources:
+  https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js
+  https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css
+  https://cdn.jsdelivr.net/npm/uplot@1.6.31/LICENSE
+
+Verified (openssl dgst -sha256 -binary <file> | base64), matching uPlot's published SRI hashes:
+  uPlot.iife.min.js  LSforT0igWRSXOIT+dxxbzm0467gzHc/s0kcls9JIaI=
+  uPlot.min.css      32MMao1vjur/JktQ9zzlsRT2Rv/ZoLt08EmwoAE1+gQ=
+
+Do not edit these files; update by replacing them and these hashes.
