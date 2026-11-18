@@ -87,3 +87,69 @@ func TestNoExternalURLs(t *testing.T) {
 		t.Error("no files checked")
 	}
 }
+
+// Every file the page asks for must be served: index.html's src and href, app.css's url()
+// and each relative import in ui/js. Fragment-only references (#id) are not files.
+func TestPageReferencesResolve(t *testing.T) {
+	h := Handler(&fakeDB{}, time.UTC)
+	refs := map[string]string{} // path to serve: where it came from
+	scan := func(file, dir string, re *regexp.Regexp) {
+		b, err := embedded.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
+			if !strings.HasPrefix(m[1], "#") {
+				refs[path.Join(dir, m[1])] = file
+			}
+		}
+	}
+	scan("ui/index.html", "/", regexp.MustCompile(`(?:src|href)="([^"]*)"`))
+	scan("ui/app.css", "/", regexp.MustCompile(`url\(["']?([^"')]+)["']?\)`))
+	js, err := fs.Glob(embedded, "ui/js/*.js")
+	if err != nil || len(js) == 0 {
+		t.Fatalf("no js files: %v", err)
+	}
+	for _, f := range js {
+		scan(f, "/js", regexp.MustCompile(`from\s+"(\./[^"]+)"`))
+	}
+	for _, want := range []string{"/app.css", "/js/main.js", "/js/now.js", "/fonts/barlow-400.woff2"} {
+		if _, ok := refs[want]; !ok {
+			t.Errorf("nothing references %s", want)
+		}
+	}
+	for p, from := range refs {
+		if rec := get(t, h, "GET", p); rec.Code != 200 {
+			t.Errorf("%s (from %s): status %d", p, from, rec.Code)
+		}
+	}
+}
+
+// Text from the air (callsigns, types, squawks) must never be parsed as HTML.
+func TestUIUsesNoInnerHTML(t *testing.T) {
+	js, err := fs.Glob(embedded, "ui/js/*.js")
+	if err != nil || len(js) == 0 {
+		t.Fatalf("no js files: %v", err)
+	}
+	for _, f := range js {
+		b, err := embedded.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, bad := range []string{"innerHTML", "outerHTML", "insertAdjacentHTML", "document.write"} {
+			if strings.Contains(string(b), bad) {
+				t.Errorf("%s uses %s", f, bad)
+			}
+		}
+	}
+}
+
+func TestPageIsTheNowPage(t *testing.T) {
+	body := get(t, Handler(&fakeDB{}, time.UTC), "GET", "/").Body.String()
+	for _, want := range []string{`id="rose"`, `id="facts"`, `id="notable"`, `id="inrange"`, `id="c-tracked"`,
+		`id="c-alt"`, `id="status"`, `<script type="module" src="js/main.js">`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %s", want)
+		}
+	}
+}

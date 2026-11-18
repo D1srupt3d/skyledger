@@ -1,0 +1,155 @@
+@font-face { font-family: "Barlow"; font-style: normal; font-weight: 400; font-display: swap; src: url("fonts/barlow-400.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/barlow-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/barlow-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 500; font-display: swap; src: url("fonts/barlow-condensed-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 600; font-display: swap; src: url("fonts/barlow-condensed-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 700; font-display: swap; src: url("fonts/barlow-condensed-700.woff2") format("woff2"); }
+
+:root {
+  color-scheme: light;
+  /* Sectional-chart paper and inks */
+  --paper: #eef2ec;          /* terrain tint */
+  --paper-2: #e2e9e1;        /* a step darker: rows, inputs */
+  --ink: #17222d;            /* chart lettering */
+  --ink-2: #4a5a66;          /* secondary text */
+  --ink-3: #6f7d86;          /* tertiary, axis labels */
+  --rule: #c6d1c9;           /* rings, grid */
+  --water: #d5e4ec; --land: #eef2ec; --coast: #8ea2ad; --border: #9aa9b2; --city: #4a5a66;
+  --airspace: #1f5aa6;       /* class B blue: series 1, today's reach */
+  --airway: #b3266e;         /* airway magenta: series 2, all-time outline */
+  --alt-1: #6da7ec; --alt-2: #2a78d6; --alt-3: #1c5cab; --alt-4: #0d366b;
+  --heat-0: #e2e9e1; --heat-1: #b7d3f6; --heat-2: #6da7ec; --heat-3: #2a78d6; --heat-4: #104281;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  --focus: #1f5aa6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --paper: #122030; --paper-2: #1a2b3d; --ink: #e7edf2; --ink-2: #a9b8c4; --ink-3: #8394a2;
+    --rule: #2c3f52; --airspace: #5b93e0; --airway: #e0619d;
+    --water: #0c1724; --land: #172a3d; --coast: #3f5a72; --border: #3a5168; --city: #a9b8c4;
+    --alt-1: #184f95; --alt-2: #2a78d6; --alt-3: #6da7ec; --alt-4: #b7d3f6;
+    --heat-0: #1a2b3d; --heat-1: #184f95; --heat-2: #2a78d6; --heat-3: #6da7ec; --heat-4: #cde2fb;
+    --focus: #8fb8f0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #122030; --paper-2: #1a2b3d; --ink: #e7edf2; --ink-2: #a9b8c4; --ink-3: #8394a2;
+  --rule: #2c3f52; --airspace: #5b93e0; --airway: #e0619d;
+  --water: #0c1724; --land: #172a3d; --coast: #3f5a72; --border: #3a5168; --city: #a9b8c4;
+  --alt-1: #184f95; --alt-2: #2a78d6; --alt-3: #6da7ec; --alt-4: #b7d3f6;
+  --heat-0: #1a2b3d; --heat-1: #184f95; --heat-2: #2a78d6; --heat-3: #6da7ec; --heat-4: #cde2fb;
+  --focus: #8fb8f0;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 16px/1.5 "Barlow", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3 { font-family: "Barlow Condensed", "Barlow", sans-serif; }
+a { color: var(--airspace); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 600px) { .wrap { padding: 0 16px; } }
+
+/* Header: wordmark, receiver status, tabs */
+header { padding: 20px 0 0; }
+.top { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+.wordmark { font: 700 34px/1 "Barlow Condensed", sans-serif; letter-spacing: 0.01em; margin: 0; }
+.wordmark a { color: inherit; text-decoration: none; }
+.status { display: inline-flex; align-items: center; gap: 8px; color: var(--ink-2); font-size: 15px; }
+.status svg { flex: none; }
+.spacer { flex: 1; }
+.btn { font: 500 14px "Barlow", sans-serif; color: var(--ink-2); background: none; border: 1px solid var(--rule);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.btn:hover { color: var(--ink); border-color: var(--ink-3); }
+.btn[aria-pressed="true"] { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+nav[role="tablist"] { display: flex; gap: 4px; margin-top: 18px; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+nav a[role="tab"] { font: 600 20px/1 "Barlow Condensed", sans-serif; color: var(--ink-2); text-decoration: none;
+  padding: 10px 14px 12px; border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+nav a[role="tab"][aria-selected="true"] { color: var(--ink); border-bottom-color: var(--airway); }
+
+main { padding: 28px 0 64px; }
+main > section[hidden] { display: none; }
+h2 { font-size: 26px; font-weight: 600; margin: 40px 0 4px; line-height: 1.1; }
+h2:first-child { margin-top: 0; }
+h3 { font-size: 19px; font-weight: 600; margin: 0 0 2px; line-height: 1.2; }
+.sub { color: var(--ink-2); margin: 0 0 14px; max-width: 70ch; font-size: 15px; }
+
+/* Compass roses */
+.hero { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr); gap: 40px; align-items: start; }
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 24px; } }
+.rose { width: 100%; height: auto; display: block; max-width: 720px; }
+.rose text { font-family: "Barlow Condensed", sans-serif; fill: var(--ink-3); }
+.rose .ring { fill: none; stroke: var(--rule); stroke-width: 1; }
+.rose .water { fill: var(--water); }
+.rose .land { fill: var(--land); stroke: var(--coast); stroke-width: 0.9; stroke-linejoin: round; fill-rule: evenodd; }
+.rose .border { fill: none; stroke: var(--border); stroke-width: 1; stroke-dasharray: 5 3; }
+.rose .city { fill: var(--city); }
+.rose .city-label { fill: var(--city); font-family: "Barlow", sans-serif; font-size: 12px; paint-order: stroke; stroke: var(--land); stroke-width: 3px; }
+.rose .tick { stroke: var(--ink-3); }
+.rose .card-pt { fill: var(--ink); font-weight: 700; }
+.rose .ever { stroke: var(--airway); stroke-width: 2; stroke-linejoin: round; }
+.rose .today { fill: none; stroke: var(--airspace); stroke-width: 2; stroke-linejoin: round; }
+.rose .plane path { fill: var(--ink); stroke: var(--paper); stroke-width: 1.5; }
+.rose .plane text { fill: var(--ink); font-size: 12px; font-weight: 600; paint-order: stroke; stroke: var(--paper); stroke-width: 3px; }
+.rose .plane.alert path { fill: var(--critical); }
+.rose .plane.mil path { fill: var(--airway); }
+.rose .plane:hover path, .rose .plane:focus path { fill: var(--airspace); }
+.rose .plane { cursor: pointer; outline: none; }
+.rose .trail { fill: none; stroke: var(--ink-3); stroke-width: 1.2; stroke-opacity: 0.55; }
+.rose .rx { fill: var(--paper); stroke: var(--ink); stroke-width: 2; }
+.key { display: flex; gap: 20px; flex-wrap: wrap; color: var(--ink-2); font-size: 14px; margin-top: 8px; }
+.key span { display: inline-flex; align-items: center; gap: 8px; }
+
+.facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 18px; align-items: baseline; }
+.facts dt { color: var(--ink-2); font-size: 15px; }
+.facts dd { margin: 0; font: 600 30px/1.15 "Barlow Condensed", sans-serif; }
+.facts dd small { font: 400 15px "Barlow", sans-serif; color: var(--ink-2); margin-left: 6px; }
+.notable { margin-top: 28px; }
+.notable ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.notable li { display: grid; grid-template-columns: 20px 1fr; gap: 10px; padding: 10px 0; border-top: 1px solid var(--rule); }
+.notable li b { font-weight: 600; }
+.notable li span { color: var(--ink-2); font-size: 15px; }
+
+/* Charts and tables */
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 36px 40px; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.chart { min-height: 220px; }
+.uplot { font-family: "Barlow", sans-serif; }
+
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th { text-align: left; font-weight: 500; color: var(--ink-2); padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--rule); }
+td.num, th.num { text-align: right; }
+.table-scroll { overflow-x: auto; }
+.mil { color: var(--airway); }
+
+.stack { width: 100%; height: 220px; display: block; }
+.stack text { font: 13px "Barlow", sans-serif; fill: var(--ink-3); }
+.stack .gl { stroke: var(--rule); }
+.ckey { display: flex; gap: 16px; flex-wrap: wrap; color: var(--ink-2); font-size: 14px; margin-top: 6px; }
+.ckey span { display: inline-flex; align-items: center; gap: 6px; }
+.ckey i { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.ckey i.ln { height: 0; width: 18px; border-top: 2px solid; border-radius: 0; }
+
+/* Line labels on the rose */
+.rose .line-label { font: 600 14px "Barlow Condensed", sans-serif; paint-order: stroke; stroke: var(--paper); stroke-width: 4px; }
+.rose .line-label.all-time { fill: var(--airway); }
+.rose .line-label.today-l { fill: var(--airspace); }
+.facts dd small:first-child { margin-left: 0; }
+
+/* In range now */
+th button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+th[aria-sort] button { color: var(--ink); }
+th[aria-sort="ascending"] button::after { content: " \2191"; }
+th[aria-sort="descending"] button::after { content: " \2193"; }
+
+#tip { position: fixed; pointer-events: none; background: var(--ink); color: var(--paper); padding: 8px 10px; border-radius: 6px;
+  font-size: 14px; line-height: 1.35; display: none; z-index: 10; max-width: 260px; }
+#tip b { font-family: "Barlow Condensed", sans-serif; font-size: 17px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
