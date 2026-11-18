@@ -102,6 +102,7 @@ func TestWebQueriesUseNoGrafanaMacros(t *testing.T) {
 	for name, sql := range map[string]string{
 		"LiveAircraft": LiveAircraft, "LiveTrails": LiveTrails, "LastHeard": LastHeard,
 		"WithoutPosition": WithoutPosition, "ReceiverLocation": ReceiverLocation, "AircraftOnDay": AircraftOnDay,
+		"FlightsReady": FlightsReady,
 	} {
 		if strings.Contains(sql, "$__") {
 			t.Errorf("%s uses a Grafana macro: %s", name, sql)

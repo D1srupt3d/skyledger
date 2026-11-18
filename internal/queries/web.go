@@ -30,3 +30,7 @@ const ReceiverLocation = `SELECT (SELECT value::float8 FROM db_meta WHERE key = 
 
 // AircraftOnDay is daily_stats' aircraft count for local date $1, NULL before the nightly import.
 const AircraftOnDay = "SELECT (SELECT aircraft FROM daily_stats WHERE day = $1::date)"
+
+// FlightsReady is whether the flights view has been filled: it is WITH NO DATA
+// until history's first refresh, and selecting from it before then fails.
+const FlightsReady = "SELECT ispopulated FROM pg_matviews WHERE matviewname = 'flights'"

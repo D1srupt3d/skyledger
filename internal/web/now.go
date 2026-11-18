@@ -164,7 +164,13 @@ func (a *api) live(ctx context.Context) (any, error) {
 		}
 	}
 	heard := map[string]time.Time{}
-	if len(military) > 0 { // flights is unpopulated until the first nightly refresh: don't touch it needlessly
+	var ready bool // flights is empty and unreadable until history's first refresh: last_heard stays null
+	if len(military) > 0 {
+		if err := a.db.QueryRow(ctx, queries.FlightsReady).Scan(&ready); err != nil {
+			return nil, err
+		}
+	}
+	if ready {
 		rows, err := a.db.Query(ctx, queries.LastHeard, military, now.Add(-time.Hour))
 		if err != nil {
 			return nil, err

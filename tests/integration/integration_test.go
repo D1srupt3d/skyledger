@@ -615,6 +615,31 @@ func TestWebNow(t *testing.T) {
 	old := now.AddDate(0, 0, -3)
 	exec(t, conn, "INSERT INTO history_positions (time, hex, lat, lon, on_ground) VALUES "+
 		"($1, 'de0002', 51, 0, false), ($2, 'de0002', 51, 0, false)", old, old.Add(time.Minute))
+	t.Run("live before flights is filled", func(t *testing.T) {
+		// flights is WITH NO DATA until history's first refresh; a military aircraft must not break /api/live.
+		srv := httptest.NewServer(web.Handler(pool, london))
+		defer srv.Close()
+		var live struct {
+			Notable []struct {
+				Kind      string  `json:"kind"`
+				Hex       string  `json:"hex"`
+				LastHeard *string `json:"last_heard"`
+			} `json:"notable"`
+		}
+		getJSON(t, srv, "/api/live", &live)
+		military := 0
+		for _, n := range live.Notable {
+			if n.Kind == "military" {
+				military++
+				if n.Hex != "de0002" || n.LastHeard != nil {
+					t.Errorf("military %+v", n)
+				}
+			}
+		}
+		if military != 1 {
+			t.Errorf("notable %+v", live.Notable)
+		}
+	})
 	exec(t, conn, "REFRESH MATERIALIZED VIEW flights")
 	exec(t, conn, "INSERT INTO receiver_stats (time, aircraft_without_pos) VALUES ($1, 2)", ago(30))
 	yesterday := time.Now().In(london).AddDate(0, 0, -1).Format("2006-01-02")
@@ -775,6 +800,7 @@ func TestWebNow(t *testing.T) {
 			"LastHeard":        {queries.LastHeard, []any{[]string{"de0002"}, ago(3600)}},
 			"WithoutPosition":  {queries.WithoutPosition, []any{ago(120)}},
 			"ReceiverLocation": {queries.ReceiverLocation, nil},
+			"FlightsReady":     {queries.FlightsReady, nil},
 			"AircraftOnDay":    {queries.AircraftOnDay, []any{yesterday}},
 		} {
 			rows, err := pool.Query(ctx, q.sql, q.args...)
