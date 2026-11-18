@@ -9,12 +9,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/D1srupt3d/skyledger/internal/config"
 )
 
 type fakeDB struct{ err error }
 
 func (f *fakeDB) Ping(context.Context) error { return f.err }
+func (f *fakeDB) Query(context.Context, string, ...any) (pgx.Rows, error) {
+	return nil, f.err
+}
+func (f *fakeDB) QueryRow(context.Context, string, ...any) pgx.Row { return errRow{f.err} }
+
+type errRow struct{ err error }
+
+func (r errRow) Scan(...any) error { return r.err }
 
 func get(t *testing.T, h http.Handler, method, path string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -24,7 +34,7 @@ func get(t *testing.T, h http.Handler, method, path string) *httptest.ResponseRe
 }
 
 func TestHealthz(t *testing.T) {
-	rec := get(t, Handler(&fakeDB{err: errors.New("down")}), "GET", "/healthz")
+	rec := get(t, Handler(&fakeDB{err: errors.New("down")}, time.UTC), "GET", "/healthz")
 	if rec.Code != 200 || rec.Body.String() != "ok\n" {
 		t.Errorf("%d %q", rec.Code, rec.Body.String())
 	}
@@ -32,7 +42,7 @@ func TestHealthz(t *testing.T) {
 
 func TestReadyzReportsDatabase(t *testing.T) {
 	db := &fakeDB{err: errors.New("connection refused")}
-	h := Handler(db)
+	h := Handler(db, time.UTC)
 	if rec := get(t, h, "GET", "/readyz"); rec.Code != 503 || rec.Body.String() != "database unreachable\n" {
 		t.Errorf("down: %d %q", rec.Code, rec.Body.String())
 	}
@@ -43,7 +53,7 @@ func TestReadyzReportsDatabase(t *testing.T) {
 }
 
 func TestShellIsEmbedded(t *testing.T) {
-	rec := get(t, Handler(&fakeDB{}), "GET", "/")
+	rec := get(t, Handler(&fakeDB{}, time.UTC), "GET", "/")
 	if rec.Code != 200 {
 		t.Fatalf("%d", rec.Code)
 	}
@@ -59,11 +69,11 @@ func TestShellIsEmbedded(t *testing.T) {
 }
 
 func TestRoutes(t *testing.T) {
-	h := Handler(&fakeDB{})
+	h := Handler(&fakeDB{}, time.UTC)
 	if rec := get(t, h, "GET", "/nope"); rec.Code != 404 {
 		t.Errorf("unknown path: %d", rec.Code)
 	}
-	for _, path := range []string{"/healthz", "/readyz", "/"} {
+	for _, path := range []string{"/healthz", "/readyz", "/", "/api/live"} {
 		if rec := get(t, h, "POST", path); rec.Code != 405 {
 			t.Errorf("POST %s: %d", path, rec.Code)
 		}
