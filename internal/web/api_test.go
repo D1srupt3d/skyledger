@@ -55,6 +55,13 @@ func TestBucketsFillGapsWithNull(t *testing.T) {
 	}
 }
 
+func TestBucketsEmptyIsNotNil(t *testing.T) {
+	t0 := time.Unix(1_800_000_000, 0)
+	if got := bucketTimes(t0, t0.Add(-time.Hour), 5*time.Minute); got == nil || len(got) != 0 {
+		t.Errorf("from after to: %#v, want an empty non-nil slice ([] in JSON)", got)
+	}
+}
+
 func TestCacheReusesAndExpires(t *testing.T) {
 	c := &cache{ttl: 50 * time.Millisecond}
 	n := 0
@@ -85,10 +92,13 @@ func TestCacheReusesAndExpires(t *testing.T) {
 
 func TestAPIErrorsHideDetails(t *testing.T) {
 	db := &fakeDB{err: errors.New("dial tcp 10.0.0.5:5432: password authentication failed for user skyledger_grafana")}
-	rec := get(t, Handler(db, time.UTC), "GET", "/api/live")
-	if rec.Code != 500 || rec.Header().Get("Content-Type") != "application/json" ||
-		rec.Body.String() != "{\"error\":\"database query failed\"}\n" {
-		t.Errorf("%d %q %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+	h := Handler(db, time.UTC)
+	for _, path := range []string{"/api/live", "/api/outlines", "/api/traffic", "/api/map"} {
+		rec := get(t, h, "GET", path)
+		if rec.Code != 500 || rec.Header().Get("Content-Type") != "application/json" ||
+			rec.Body.String() != "{\"error\":\"database query failed\"}\n" {
+			t.Errorf("%s: %d %q %q", path, rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+		}
 	}
 }
 

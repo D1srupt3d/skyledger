@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -11,6 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/D1srupt3d/skyledger/internal/geo"
 )
 
 // DB is what the API needs from the database; *pgxpool.Pool satisfies it.
@@ -63,24 +64,27 @@ func writeError(w http.ResponseWriter, err error) {
 	_, _ = w.Write([]byte("{\"error\":\"database query failed\"}\n"))
 }
 
-// api holds what the endpoint builders query with. Task 4 fills the builders.
+// api holds what the endpoint builders (now.go) query with.
 type api struct {
 	db DB
 	tz *time.Location
+
+	mapMu  sync.Mutex
+	mapAt  [2]float64 // the receiver location mapped was built for
+	mapped *geo.Map
 }
 
-var errNotYet = errors.New("not yet")
-
-func (a *api) live(context.Context) (any, error)     { return nil, errNotYet }
-func (a *api) outlines(context.Context) (any, error) { return nil, errNotYet }
-func (a *api) traffic(context.Context) (any, error)  { return nil, errNotYet }
-func (a *api) mapData(context.Context) (any, error)  { return nil, errNotYet }
-
-// route serves one cached builder as GET path.
+// route serves one cached builder as GET path. A build gets 10 s, so a hung
+// query fails the request instead of stalling every waiter on the cache.
 func route(mux *http.ServeMux, path string, ttl time.Duration, build func(context.Context) (any, error)) {
 	c := &cache{ttl: ttl}
+	bounded := func(ctx context.Context) (any, error) {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		return build(ctx)
+	}
 	mux.HandleFunc("GET "+path, func(w http.ResponseWriter, r *http.Request) {
-		body, err := c.get(r.Context(), build)
+		body, err := c.get(r.Context(), bounded)
 		if err != nil {
 			writeError(w, err)
 			return

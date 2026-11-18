@@ -68,7 +68,7 @@ func Handler(db DB, tz *time.Location) http.Handler {
 	route(mux, "/api/live", 10*time.Second, a.live)
 	route(mux, "/api/outlines", 60*time.Second, a.outlines)
 	route(mux, "/api/traffic", 60*time.Second, a.traffic)
-	route(mux, "/api/map", 24*time.Hour, a.mapData) // Task 4: rebuild when the receiver moves
+	route(mux, "/api/map", 60*time.Second, a.mapData) // rebuilt only when the receiver moves
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		// The UI changes with each release; make the browser check rather than reuse a stale copy.
 		w.Header().Set("Cache-Control", "no-cache")
