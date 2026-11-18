@@ -8,6 +8,7 @@
 | `migrate` | `skyledger migrate` | once at start; the others wait for it |
 | `ingest` | `skyledger ingest` | always: polls `aircraft.json` every 10 s, `stats.json` every minute |
 | `history` | `skyledger history` | always: a run at start, then daily at `HISTORY_AT` |
+| `web` | `skyledger web` | profile `web` (preview): the web UI on port 1200, as the read-only role |
 | `grafana` | Grafana with provisioned datasource and dashboards | profile `grafana` |
 | `demo-feed` | `skyledger demo-feed` | profile `demo` |
 
@@ -26,7 +27,7 @@ All skyledger containers use one image and differ only in the command. They only
 | `aircraft_db`, `airlines` | tar1090's aircraft database on the receiver | replaced when its version changes |
 | `history_outline` | furthest corroborated position per degree of bearing | forever, only ever extended |
 | `flights` (materialized view) | `history_positions` split at 30-minute gaps | rebuilt after each import |
-| `db_meta` | settings (`tz`, retention), first history day, aircraft database version | |
+| `db_meta` | settings (`tz`, retention), first history day, receiver location (`rx_lat`, `rx_lon`), aircraft database version | |
 
 Migrations are numbered SQL files in `src/skyledger/migrations/`, applied in order and recorded in `schema_migrations`. Settings that come from the environment (live retention, the Grafana role's password, the time zone the dashboards use) are applied on every `migrate`, so editing `.env` takes effect on the next start.
 
@@ -58,4 +59,4 @@ A position counts toward the outline only if the same aircraft's previous or nex
 
 ## Dashboards
 
-`tools/gendashboards` (code in `internal/dashboards`) builds all panels once and assigns them by title to three dashboards (`skyledger-overview`, `skyledger-receiver`, `skyledger-history`). Local-time bucketing reads the configured time zone from `db_meta`, so nothing in the JSON is site-specific. Maps fit to their data; the coverage heatmap also carries the outline as a markers layer because Grafana can't compute an extent from a heatmap layer alone. CI fails if the committed JSON differs from what the generator produces.
+The panel SQL lives in `internal/queries`, shared with the web UI, which runs it with the Grafana macros replaced by bind parameters (`queries.Expand`). `tools/gendashboards` (code in `internal/dashboards`) builds all panels once and assigns them by title to three dashboards (`skyledger-overview`, `skyledger-receiver`, `skyledger-history`). Local-time bucketing reads the configured time zone from `db_meta`, so nothing in the JSON is site-specific. Maps fit to their data; the coverage heatmap also carries the outline as a markers layer because Grafana can't compute an extent from a heatmap layer alone. CI fails if the committed JSON differs from what the generator produces.
