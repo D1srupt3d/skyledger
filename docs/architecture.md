@@ -8,11 +8,13 @@
 | `migrate` | `skyledger migrate` | once at start; the others wait for it |
 | `ingest` | `skyledger ingest` | always: polls `aircraft.json` every 10 s, `stats.json` every minute |
 | `history` | `skyledger history` | always: a run at start, then daily at `HISTORY_AT` |
-| `web` | `skyledger web` | profile `web` (preview): the web UI on port 1200, as the read-only role |
+| `web` | `skyledger web` | profile `web` (preview): the web UI (Now page) and its JSON API on port 1200, as the read-only role |
 | `grafana` | Grafana with provisioned datasource and dashboards | profile `grafana` |
 | `demo-feed` | `skyledger demo-feed` | profile `demo` |
 
 All skyledger containers use one image and differ only in the command. They only read from the receiver.
+
+The Now page's map is Natural Earth data, embedded in the binary and projected around the receiver's `rx_lat`/`rx_lon`.
 
 ## Data
 

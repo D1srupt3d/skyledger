@@ -8,6 +8,7 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -496,4 +497,334 @@ func TestRunLoops(t *testing.T) {
 	if n := scalar[int](t, mustConnect(t, base, "", "", "runloops_test"), "SELECT count(*) FROM receiver_stats"); n != 1 {
 		t.Errorf("%d stats rows: stats are polled once a minute, not every poll", n)
 	}
+}
+
+// The Now page's JSON API against a seeded database, through web's read-only pool.
+func TestWebNow(t *testing.T) {
+	base := dsnConfig(t)
+	admin := mustConnect(t, base, "", "", "")
+	exec(t, admin, "DROP DATABASE IF EXISTS web_test WITH (FORCE)")
+	exec(t, admin, "CREATE DATABASE web_test")
+	t.Cleanup(func() { exec(t, admin, "DROP DATABASE IF EXISTS web_test WITH (FORCE)") })
+	conn := mustConnect(t, base, "", "", "web_test")
+	london, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := config.Settings{TZ: london, RetentionDays: 30, ReadOnlyDBPassword: "grafana-test"}
+	if err := migrate.Apply(ctx, conn, s); err != nil {
+		t.Fatal(err)
+	}
+	owner := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=web_test",
+		base.Host, base.Port, base.User, base.Password)
+	cfg, err := web.ReadOnlyConfig(config.Settings{DatabaseURL: owner, ReadOnlyDBPassword: "grafana-test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+
+	// A fresh handler per phase: each has its own caches.
+	getJSON := func(t *testing.T, srv *httptest.Server, path string, v any) {
+		t.Helper()
+		res, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = res.Body.Close() }()
+		if res.StatusCode != 200 {
+			t.Fatalf("%s: %d", path, res.StatusCode)
+		}
+		if err := json.NewDecoder(res.Body).Decode(v); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+	}
+	type far struct {
+		NM   float64 `json:"nm"`
+		Deg  int     `json:"deg"`
+		Time string  `json:"time"`
+	}
+	type outlines struct {
+		AllTime       []*float64 `json:"all_time"`
+		Today         []*float64 `json:"today"`
+		FurthestToday *far       `json:"furthest_today"`
+		FurthestEver  *far       `json:"furthest_ever"`
+	}
+
+	t.Run("empty", func(t *testing.T) {
+		srv := httptest.NewServer(web.Handler(pool, london))
+		defer srv.Close()
+		var live map[string]any
+		getJSON(t, srv, "/api/live", &live)
+		st := live["status"].(map[string]any)
+		if st["level"] != "silent" || st["age_s"] != nil {
+			t.Errorf("status %v", st)
+		}
+		if r, ok := live["flights_ready"].(bool); !ok || r {
+			t.Errorf("flights_ready: %#v", live["flights_ready"])
+		}
+		for _, k := range []string{"aircraft", "notable"} {
+			if l, ok := live[k].([]any); !ok || len(l) != 0 {
+				t.Errorf("%s: %#v", k, live[k])
+			}
+		}
+		var o outlines
+		getJSON(t, srv, "/api/outlines", &o)
+		if len(o.AllTime) != 360 || len(o.Today) != 360 || o.FurthestEver != nil || o.FurthestToday != nil {
+			t.Errorf("outlines %+v", o)
+		}
+		for i := range 360 {
+			if o.AllTime[i] != nil || o.Today[i] != nil {
+				t.Fatalf("deg %d not null", i)
+			}
+		}
+		var traffic map[string]any
+		getJSON(t, srv, "/api/traffic", &traffic)
+		if traffic["aircraft_yesterday"] != nil || traffic["aircraft_today"] != 0.0 {
+			t.Errorf("traffic counts %v %v", traffic["aircraft_today"], traffic["aircraft_yesterday"])
+		}
+		var m map[string]any
+		getJSON(t, srv, "/api/map", &m)
+		if _, ok := m["center"]; !ok || m["center"] != nil {
+			t.Errorf("map center %v", m["center"])
+		}
+		for _, k := range []string{"land", "borders", "cities"} {
+			if l, ok := m[k].([]any); !ok || len(l) != 0 {
+				t.Errorf("map %s: %#v", k, m[k])
+			}
+		}
+	})
+
+	now := time.Now().UTC()
+	ago := func(s int) time.Time { return now.Add(-time.Duration(s) * time.Second) }
+	pos := "INSERT INTO positions (time, hex, flight, squawk, lat, lon, alt_baro, on_ground, distance_nm, bearing) " +
+		"VALUES ($1, $2, $3, $4, 51, 0, $5, false, $6, $7)"
+	exec(t, conn, "INSERT INTO db_meta VALUES ('rx_lat', '50.90'), ('rx_lon', '-0.11')")
+	exec(t, conn, "INSERT INTO aircraft (hex, type_code, db_flags, first_seen, last_seen) VALUES "+
+		"('de0001', 'B38M', 0, $1, $1), ('de0002', 'C17', 1, $1, $1), ('de0003', 'C172', 0, $1, $1), "+
+		"('de0004', NULL, 0, $1, $1)", now)
+	for _, s := range []int{50, 20} {
+		exec(t, conn, pos, ago(s), "de0001", "<b>DMO1</b>", nil, 37000, 120, 45)
+	}
+	for s := 10; s < 300; s += 30 {
+		exec(t, conn, pos, ago(s), "de0002", "RCH99", nil, 28000, 80, 135)
+	}
+	exec(t, conn, pos, ago(15), "de0003", "DEMOX1", "7700", 3000, 15, 300)
+	exec(t, conn, pos, ago(30), "de0004", nil, nil, nil, nil, nil)
+	exec(t, conn, "INSERT INTO history_outline VALUES (45, 52, 1, 200, 30000, 'de0001', '2026-10-01T12:00:00Z')")
+	old := now.AddDate(0, 0, -3)
+	exec(t, conn, "INSERT INTO history_positions (time, hex, lat, lon, on_ground) VALUES "+
+		"($1, 'de0002', 51, 0, false), ($2, 'de0002', 51, 0, false)", old, old.Add(time.Minute))
+	t.Run("live before flights is filled", func(t *testing.T) {
+		// flights is WITH NO DATA until history's first refresh; a military aircraft must not break /api/live.
+		srv := httptest.NewServer(web.Handler(pool, london))
+		defer srv.Close()
+		var live struct {
+			FlightsReady bool `json:"flights_ready"`
+			Notable      []struct {
+				Kind      string  `json:"kind"`
+				Hex       string  `json:"hex"`
+				LastHeard *string `json:"last_heard"`
+			} `json:"notable"`
+		}
+		getJSON(t, srv, "/api/live", &live)
+		if live.FlightsReady {
+			t.Error("flights_ready before the first refresh")
+		}
+		military := 0
+		for _, n := range live.Notable {
+			if n.Kind == "military" {
+				military++
+				if n.Hex != "de0002" || n.LastHeard != nil {
+					t.Errorf("military %+v", n)
+				}
+			}
+		}
+		if military != 1 {
+			t.Errorf("notable %+v", live.Notable)
+		}
+	})
+	exec(t, conn, "REFRESH MATERIALIZED VIEW flights")
+	exec(t, conn, "INSERT INTO receiver_stats (time, aircraft_without_pos) VALUES ($1, 2)", ago(30))
+	yesterday := time.Now().In(london).AddDate(0, 0, -1).Format("2006-01-02")
+	exec(t, conn, "INSERT INTO daily_stats (day, aircraft, positions) VALUES ($1::date, 7, 0)", yesterday)
+
+	srv := httptest.NewServer(web.Handler(pool, london))
+	defer srv.Close()
+
+	t.Run("live", func(t *testing.T) {
+		var live struct {
+			FlightsReady bool `json:"flights_ready"`
+			Status       struct {
+				Level string   `json:"level"`
+				AgeS  *float64 `json:"age_s"`
+			} `json:"status"`
+			Counts struct {
+				WithPosition    int  `json:"with_position"`
+				WithoutPosition *int `json:"without_position"`
+			} `json:"counts"`
+			Aircraft []struct {
+				Hex      string       `json:"hex"`
+				Callsign *string      `json:"callsign"`
+				Military bool         `json:"military"`
+				Distance *float64     `json:"distance_nm"`
+				Trail    [][2]float64 `json:"trail"`
+			} `json:"aircraft"`
+			Notable []struct {
+				Kind      string  `json:"kind"`
+				Hex       string  `json:"hex"`
+				LastHeard *string `json:"last_heard"`
+			} `json:"notable"`
+		}
+		getJSON(t, srv, "/api/live", &live)
+		if !live.FlightsReady {
+			t.Error("flights_ready after the refresh")
+		}
+		if live.Status.Level != "live" || live.Status.AgeS == nil {
+			t.Errorf("status %+v", live.Status)
+		}
+		if live.Counts.WithPosition != 4 || live.Counts.WithoutPosition == nil || *live.Counts.WithoutPosition != 2 {
+			t.Errorf("counts %+v", live.Counts)
+		}
+		ac := live.Aircraft
+		if len(ac) != 4 || ac[0].Hex != "de0003" || ac[3].Hex != "de0004" || ac[3].Distance != nil {
+			t.Fatalf("aircraft %+v", ac)
+		}
+		for _, a := range ac {
+			switch a.Hex {
+			case "de0001":
+				if a.Callsign == nil || *a.Callsign != "<b>DMO1</b>" {
+					t.Errorf("callsign %v", a.Callsign)
+				}
+			case "de0002":
+				if !a.Military || len(a.Trail) < 9 {
+					t.Errorf("de0002 military %v, %d trail points", a.Military, len(a.Trail))
+				}
+				if a.Trail[0] != [2]float64{135, 80} {
+					t.Errorf("trail point %v", a.Trail[0])
+				}
+			case "de0004":
+				if a.Trail == nil || len(a.Trail) != 0 {
+					t.Errorf("de0004 trail %#v", a.Trail)
+				}
+			}
+		}
+		n := live.Notable
+		if len(n) != 2 || n[0].Kind != "emergency" || n[0].Hex != "de0003" ||
+			n[1].Kind != "military" || n[1].Hex != "de0002" || n[1].LastHeard == nil {
+			t.Fatalf("notable %+v", n)
+		}
+		heard, err := time.Parse(time.RFC3339, *n[1].LastHeard)
+		if err != nil || now.Sub(heard) < 71*time.Hour || now.Sub(heard) > 73*time.Hour {
+			t.Errorf("last heard %s %v", *n[1].LastHeard, err)
+		}
+	})
+
+	t.Run("outlines", func(t *testing.T) {
+		var o outlines
+		getJSON(t, srv, "/api/outlines", &o)
+		if len(o.AllTime) != 360 || o.AllTime[45] == nil || *o.AllTime[45] != 200 {
+			t.Errorf("all_time[45] %v", o.AllTime)
+		}
+		if len(o.Today) != 360 || o.Today[45] == nil || *o.Today[45] != 120 {
+			t.Errorf("today[45] %v", o.Today)
+		}
+		if o.FurthestEver == nil || *o.FurthestEver != (far{200, 45, "2026-10-01T12:00:00Z"}) {
+			t.Errorf("furthest_ever %+v", o.FurthestEver)
+		}
+		if o.FurthestToday == nil || *o.FurthestToday != (far{NM: 120, Deg: 45}) {
+			t.Errorf("furthest_today %+v", o.FurthestToday)
+		}
+	})
+
+	t.Run("traffic", func(t *testing.T) {
+		var tr struct {
+			Tracked struct {
+				StepS    int      `json:"step_s"`
+				T        []int64  `json:"t"`
+				Aircraft []*int64 `json:"aircraft"`
+			} `json:"tracked"`
+			Altitude map[string]any `json:"altitude"`
+			Today    int            `json:"aircraft_today"`
+			Yday     *int           `json:"aircraft_yesterday"`
+		}
+		getJSON(t, srv, "/api/traffic", &tr)
+		tk := tr.Tracked
+		if tk.StepS != 300 || len(tk.T) != 289 || len(tk.Aircraft) != 289 {
+			t.Fatalf("tracked step %d, %d times, %d values", tk.StepS, len(tk.T), len(tk.Aircraft))
+		}
+		for i := 1; i < len(tk.T); i++ {
+			if tk.T[i]-tk.T[i-1] != 300 {
+				t.Fatalf("t[%d] - t[%d] = %d", i, i-1, tk.T[i]-tk.T[i-1])
+			}
+		}
+		recent := false
+		for i, v := range tk.Aircraft {
+			if now.Unix()-tk.T[i] > 600 && v != nil {
+				t.Errorf("t %d: %d aircraft, want null", tk.T[i], *v)
+			}
+			if i >= len(tk.T)-3 && v != nil && *v >= 1 {
+				recent = true
+			}
+		}
+		if !recent {
+			t.Error("no aircraft in the last three buckets")
+		}
+		for _, k := range []string{"t", "ground", "below_10k", "10k_30k", "30k_up"} {
+			if l, ok := tr.Altitude[k].([]any); !ok || len(l) != 25 {
+				t.Errorf("altitude %s: %v", k, tr.Altitude[k])
+			}
+		}
+		if tr.Altitude["step_s"] != 3600.0 {
+			t.Errorf("altitude step %v", tr.Altitude["step_s"])
+		}
+		if tr.Today != 4 || tr.Yday == nil || *tr.Yday != 7 {
+			t.Errorf("today %d yesterday %v", tr.Today, tr.Yday)
+		}
+	})
+
+	t.Run("map", func(t *testing.T) {
+		var m struct {
+			Center *[2]float64 `json:"center"`
+			Land   []any       `json:"land"`
+		}
+		getJSON(t, srv, "/api/map", &m)
+		if m.Center == nil || *m.Center != [2]float64{50.90, -0.11} || len(m.Land) == 0 {
+			t.Errorf("center %v, %d land rings", m.Center, len(m.Land))
+		}
+	})
+
+	t.Run("web queries run read only", func(t *testing.T) {
+		var user string
+		if err := pool.QueryRow(ctx, "SELECT current_user").Scan(&user); err != nil || user != "skyledger_grafana" {
+			t.Fatalf("pool user %q: %v", user, err)
+		}
+		for name, q := range map[string]struct {
+			sql  string
+			args []any
+		}{
+			"LiveAircraft":     {queries.LiveAircraft, []any{ago(60)}},
+			"LiveTrails":       {queries.LiveTrails, []any{ago(300)}},
+			"LastHeard":        {queries.LastHeard, []any{[]string{"de0002"}, ago(3600)}},
+			"WithoutPosition":  {queries.WithoutPosition, []any{ago(120)}},
+			"ReceiverLocation": {queries.ReceiverLocation, nil},
+			"FlightsReady":     {queries.FlightsReady, nil},
+			"AircraftOnDay":    {queries.AircraftOnDay, []any{yesterday}},
+		} {
+			rows, err := pool.Query(ctx, q.sql, q.args...)
+			n := 0
+			if err == nil {
+				for rows.Next() {
+					n++
+				}
+				err = rows.Err()
+			}
+			if err != nil || n == 0 {
+				t.Errorf("%s: %d rows, %v", name, n, err)
+			}
+		}
+	})
 }

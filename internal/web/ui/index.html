@@ -4,20 +4,61 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>skyledger</title>
-<style>
-  :root { color-scheme: light dark; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-         font: 16px/1.5 system-ui, sans-serif; background: #f4f1e8; color: #1d2b44; }
-  @media (prefers-color-scheme: dark) { body { background: #0f1a2e; color: #dfe6f2; } }
-  main { max-width: 32rem; padding: 0 16px; }
-  h1 { font-size: 1.5rem; margin: 0 0 .5rem; }
-</style>
+<link rel="stylesheet" href="vendor/uplot/uPlot.min.css">
+<link rel="stylesheet" href="app.css">
+<script src="vendor/uplot/uPlot.iife.min.js"></script>
+<script type="module" src="js/main.js"></script>
 </head>
 <body>
-<main>
-  <h1>skyledger</h1>
-  <p>Your receiver's logbook is being written. The web UI is on its way;
-     for now, the Grafana dashboards have everything skyledger has heard.</p>
+<header class="wrap">
+  <div class="top">
+    <h1 class="wordmark"><a href="./">skyledger</a></h1>
+    <span class="status" id="status" role="status"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="themeBtn" type="button">Dark</button>
+  </div>
+  <nav role="tablist" aria-label="Views">
+    <a role="tab" href="./" id="t-now" aria-controls="p-now" aria-selected="true">Now</a>
+  </nav>
+</header>
+
+<main class="wrap">
+  <section role="tabpanel" id="p-now" aria-labelledby="t-now">
+    <div class="hero">
+      <div>
+        <svg class="rose" id="rose" viewBox="0 0 640 640" role="img" aria-label="Reception range by bearing, with aircraft in range"></svg>
+        <p class="sub" id="map-hint" hidden>Set your receiver's location in readsb to see the map.</p>
+        <div class="key">
+          <span>Outlines: furthest reception per degree, all-time and today. Rings every 50 nm.</span>
+        </div>
+      </div>
+      <div>
+        <dl class="facts" id="facts"></dl>
+        <div class="notable">
+          <h3>Worth a look</h3>
+          <ul id="notable"></ul>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="inrange-h">In range now</h2>
+    <p class="sub" id="inrange-sub"></p>
+    <div class="table-scroll"><table id="inrange"></table></div>
+
+    <h2>Traffic, last 24 hours</h2>
+    <div class="grid2">
+      <div><h3>Aircraft tracked</h3><div class="chart" id="c-tracked"></div></div>
+      <div><h3>Aircraft by altitude, per hour</h3><svg class="stack" id="c-alt" role="img" aria-label="Aircraft per hour, split by altitude band"></svg>
+        <div class="ckey" id="k-alt">
+          <span><i style="background:var(--alt-1)"></i>On the ground</span>
+          <span><i style="background:var(--alt-2)"></i>Under 10,000 ft</span>
+          <span><i style="background:var(--alt-3)"></i>10,000 to 30,000 ft</span>
+          <span><i style="background:var(--alt-4)"></i>Above 30,000 ft</span>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
+<div id="tip" role="tooltip"></div>
 </body>
 </html>

@@ -42,8 +42,9 @@ func ReadOnlyConfig(s config.Settings) (*pgxpool.Config, error) {
 }
 
 // Handler serves the embedded UI, /healthz (the process is up) and /readyz (the
-// database answers). Only GET (and HEAD); anything else is 405.
-func Handler(db interface{ Ping(context.Context) error }) http.Handler {
+// database answers), plus the JSON API under /api. Only GET (and HEAD); anything
+// else is 405. Every response carries the security headers.
+func Handler(db DB, tz *time.Location) http.Handler {
 	ui, err := fs.Sub(embedded, "ui")
 	if err != nil {
 		panic(err) // the embed path is fixed at build time
@@ -63,12 +64,17 @@ func Handler(db interface{ Ping(context.Context) error }) http.Handler {
 		}
 		_, _ = fmt.Fprintln(w, "ok")
 	})
+	a := &api{db: db, tz: tz}
+	route(mux, "/api/live", 10*time.Second, a.live)
+	route(mux, "/api/outlines", 60*time.Second, a.outlines)
+	route(mux, "/api/traffic", 60*time.Second, a.traffic)
+	route(mux, "/api/map", 60*time.Second, a.mapData) // rebuilt only when the receiver moves
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		// The UI changes with each release; make the browser check rather than reuse a stale copy.
 		w.Header().Set("Cache-Control", "no-cache")
 		files.ServeHTTP(w, r)
 	})
-	return mux
+	return secure(mux)
 }
 
 // Run is `skyledger web`.
@@ -93,7 +99,7 @@ func serve(ctx context.Context, s config.Settings, addr string) error {
 	if err != nil {
 		return err
 	}
-	srv := &http.Server{Handler: Handler(pool), ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: Handler(pool, s.TZ), ReadHeaderTimeout: 10 * time.Second}
 	slog.Info("web listening", "addr", ln.Addr().String(),
 		"db_host", cfg.ConnConfig.Host, "db_name", cfg.ConnConfig.Database)
 
