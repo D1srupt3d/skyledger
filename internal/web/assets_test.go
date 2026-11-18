@@ -35,8 +35,9 @@ func TestVendoredAssetsAreServed(t *testing.T) {
 
 func TestLicensesShipWithVendoredCode(t *testing.T) {
 	for p, want := range map[string]string{
-		"ui/vendor/uplot/LICENSE": "MIT",
-		"ui/fonts/OFL.txt":        "SIL Open Font License",
+		"ui/vendor/uplot/LICENSE":           "MIT",
+		"ui/fonts/OFL.txt":                  "SIL Open Font License",
+		"ui/fonts/OFL-barlow-condensed.txt": "SIL Open Font License",
 	} {
 		b, err := embedded.ReadFile(p)
 		if err != nil {
