@@ -134,12 +134,16 @@ func AircraftJSON(now float64) map[string]any {
 	aircraft := []map[string]any{}
 	for _, s := range Visible(now) {
 		p := s.Plane
+		lat, lon := round6(s.Lat), round6(s.Lon)
+		dist, brg := heatmap.RangeAndBearing(Receiver.Lat, Receiver.Lon, lat, lon)
 		a := map[string]any{
 			"hex":       fmt.Sprintf("%06x", p.Hex),
 			"type":      "adsb_icao",
 			"flight":    fmt.Sprintf("%-8s", p.Callsign),
-			"lat":       round6(s.Lat),
-			"lon":       round6(s.Lon),
+			"lat":       lat,
+			"lon":       lon,
+			"r_dst":     math.Round(dist*10) / 10,
+			"r_dir":     math.Round(brg*10) / 10,
 			"alt_baro":  p.Alt,
 			"alt_geom":  p.Alt + 400,
 			"gs":        p.Speed,

@@ -3,6 +3,7 @@ package demo
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -70,6 +71,26 @@ func TestLiveFeedParses(t *testing.T) {
 	}
 	if mil != 1 {
 		t.Errorf("%d military aircraft", mil)
+	}
+}
+
+func TestLiveFeedReportsRangeAndBearing(t *testing.T) {
+	if len(Visible(now)) == 0 {
+		t.Fatal("nothing visible")
+	}
+	for _, a := range AircraftJSON(now)["aircraft"].([]map[string]any) {
+		dst, ok1 := a["r_dst"].(float64)
+		dir, ok2 := a["r_dir"].(float64)
+		if !ok1 || !ok2 {
+			t.Fatalf("r_dst/r_dir missing or not float64: %v %v", a["r_dst"], a["r_dir"])
+		}
+		d, b := heatmap.RangeAndBearing(Receiver.Lat, Receiver.Lon, a["lat"].(float64), a["lon"].(float64))
+		if dst != math.Round(d*10)/10 || dir != math.Round(b*10)/10 {
+			t.Errorf("%v: r_dst %v r_dir %v, want %v %v", a["hex"], dst, dir, d, b)
+		}
+		if dst >= 300 || dir < 0 || dir >= 360 {
+			t.Errorf("%v: out of bounds %v %v", a["hex"], dst, dir)
+		}
 	}
 }
 
