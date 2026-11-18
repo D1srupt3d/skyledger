@@ -1,7 +1,7 @@
 // The JSON API. Paths are relative ("api/live") so the UI also works under a proxy subpath.
 
 export async function getJSON(path) {
-  const r = await fetch(path, { cache: "no-store" });
+  const r = await fetch(path, { cache: "no-store", signal: AbortSignal.timeout(15000) });
   if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
   return r.json();
 }

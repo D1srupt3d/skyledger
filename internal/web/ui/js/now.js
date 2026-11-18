@@ -75,7 +75,7 @@ function notableItem(n) {
   }
   if (n.kind === "military") {
     cs.append(`, a military ${n.type || "aircraft"}`);
-    return ["info", cs, n.last_heard ? `Last heard here ${ago(n.last_heard)}` : "First time heard here"];
+    return ["info", cs, n.last_heard ? `Last heard here ${ago(n.last_heard)}` : state.live.flights_ready ? "First time heard here" : "No flight history yet"];
   }
   cs.append(" is the lowest airborne aircraft");
   return ["info", cs, [ft(n.alt), where(n)].filter(Boolean).join(", ")];

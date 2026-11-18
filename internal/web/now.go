@@ -89,6 +89,8 @@ type live struct {
 	} `json:"counts"`
 	Aircraft []*aircraft `json:"aircraft"`
 	Notable  []notable   `json:"notable"`
+	// FlightsReady is false until history's first refresh fills flights; until then last_heard is unknown.
+	FlightsReady bool `json:"flights_ready"`
 }
 
 // panelRow runs a one-row dashboard panel query over from..to into dest.
@@ -164,13 +166,11 @@ func (a *api) live(ctx context.Context) (any, error) {
 		}
 	}
 	heard := map[string]time.Time{}
-	var ready bool // flights is empty and unreadable until history's first refresh: last_heard stays null
-	if len(military) > 0 {
-		if err := a.db.QueryRow(ctx, queries.FlightsReady).Scan(&ready); err != nil {
-			return nil, err
-		}
+	// flights is empty and unreadable until history's first refresh: last_heard stays null
+	if err := a.db.QueryRow(ctx, queries.FlightsReady).Scan(&out.FlightsReady); err != nil {
+		return nil, err
 	}
-	if ready {
+	if out.FlightsReady && len(military) > 0 {
 		rows, err := a.db.Query(ctx, queries.LastHeard, military, now.Add(-time.Hour))
 		if err != nil {
 			return nil, err

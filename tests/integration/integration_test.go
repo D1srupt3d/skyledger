@@ -563,6 +563,9 @@ func TestWebNow(t *testing.T) {
 		if st["level"] != "silent" || st["age_s"] != nil {
 			t.Errorf("status %v", st)
 		}
+		if r, ok := live["flights_ready"].(bool); !ok || r {
+			t.Errorf("flights_ready: %#v", live["flights_ready"])
+		}
 		for _, k := range []string{"aircraft", "notable"} {
 			if l, ok := live[k].([]any); !ok || len(l) != 0 {
 				t.Errorf("%s: %#v", k, live[k])
@@ -620,13 +623,17 @@ func TestWebNow(t *testing.T) {
 		srv := httptest.NewServer(web.Handler(pool, london))
 		defer srv.Close()
 		var live struct {
-			Notable []struct {
+			FlightsReady bool `json:"flights_ready"`
+			Notable      []struct {
 				Kind      string  `json:"kind"`
 				Hex       string  `json:"hex"`
 				LastHeard *string `json:"last_heard"`
 			} `json:"notable"`
 		}
 		getJSON(t, srv, "/api/live", &live)
+		if live.FlightsReady {
+			t.Error("flights_ready before the first refresh")
+		}
 		military := 0
 		for _, n := range live.Notable {
 			if n.Kind == "military" {
@@ -650,7 +657,8 @@ func TestWebNow(t *testing.T) {
 
 	t.Run("live", func(t *testing.T) {
 		var live struct {
-			Status struct {
+			FlightsReady bool `json:"flights_ready"`
+			Status       struct {
 				Level string   `json:"level"`
 				AgeS  *float64 `json:"age_s"`
 			} `json:"status"`
@@ -672,6 +680,9 @@ func TestWebNow(t *testing.T) {
 			} `json:"notable"`
 		}
 		getJSON(t, srv, "/api/live", &live)
+		if !live.FlightsReady {
+			t.Error("flights_ready after the refresh")
+		}
 		if live.Status.Level != "live" || live.Status.AgeS == nil {
 			t.Errorf("status %+v", live.Status)
 		}

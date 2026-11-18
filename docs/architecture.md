@@ -31,7 +31,7 @@ The Now page's map is Natural Earth data, embedded in the binary and projected a
 | `flights` (materialized view) | `history_positions` split at 30-minute gaps | rebuilt after each import |
 | `db_meta` | settings (`tz`, retention), first history day, receiver location (`rx_lat`, `rx_lon`), aircraft database version | |
 
-Migrations are numbered SQL files in `internal/migrate/migrations/`, applied in order and recorded in `schema_migrations`. Settings that come from the environment (live retention, the Grafana role's password, the time zone the dashboards use) are applied on every `migrate`, so editing `.env` takes effect on the next start.
+Migrations are numbered SQL files in `src/skyledger/migrations/`, applied in order and recorded in `schema_migrations`. Settings that come from the environment (live retention, the Grafana role's password, the time zone the dashboards use) are applied on every `migrate`, so editing `.env` takes effect on the next start.
 
 ## History import
 

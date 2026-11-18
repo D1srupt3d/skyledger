@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -57,8 +58,12 @@ func writeJSON(w http.ResponseWriter, body []byte) {
 }
 
 // writeError logs the real error and tells the client nothing about it.
-func writeError(w http.ResponseWriter, err error) {
-	slog.Error("api", "err", err)
+func writeError(w http.ResponseWriter, path string, err error) {
+	if errors.Is(err, context.Canceled) { // the client went away: nothing to report
+		slog.Debug("api", "path", path, "err", err)
+	} else {
+		slog.Error("api", "path", path, "err", err)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
 	_, _ = w.Write([]byte("{\"error\":\"database query failed\"}\n"))
@@ -86,7 +91,7 @@ func route(mux *http.ServeMux, path string, ttl time.Duration, build func(contex
 	mux.HandleFunc("GET "+path, func(w http.ResponseWriter, r *http.Request) {
 		body, err := c.get(r.Context(), bounded)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, path, err)
 			return
 		}
 		writeJSON(w, body)
