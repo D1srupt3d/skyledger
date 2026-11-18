@@ -70,3 +70,14 @@ func TestLongRunningCommandsStopOnCancel(t *testing.T) {
 		}
 	}
 }
+
+func TestWebCommand(t *testing.T) {
+	if _, out, _ := call([]string{"--help"}, nil); !strings.Contains(out, "\n  web ") {
+		t.Errorf("help does not list web: %q", out)
+	}
+	// Neither TAR1090_URL nor the owner's password needed; the missing read-only password is what stops it.
+	code, _, errOut := call([]string{"web"}, map[string]string{})
+	if code != 1 || !strings.Contains(errOut, "skyledger: READONLY_DB_PASSWORD is required for web") {
+		t.Errorf("%d %q", code, errOut)
+	}
+}

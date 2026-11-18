@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Web UI preview: `skyledger web` serves the start of skyledger's own web UI on port 1200, off by default (Compose: add `web` to `COMPOSE_PROFILES`; Helm: `web.enabled=true`). It has no login, so keep it on your LAN or VPN. It reads the database as the read-only login and never gets the owner's password. Grafana is unchanged.
+- `READONLY_DB_PASSWORD` is the new name for `GRAFANA_DB_PASSWORD` (the read-only login Grafana and the web UI share). The old name still works, nothing to change; if both are set to different values, skyledger refuses to start and says so. The Helm Secret key stays `GRAFANA_DB_PASSWORD`.
+- `history` stores the receiver's location (from readsb's receiver.json) in the database each run, for the web UI's map.
 - Grafana 13.3.0 (was 13.2.2), in Compose and the Helm chart.
 - The four Grafana alert rules are gone (receiver stats stale, decoding nothing, history import stale, GPS degraded). Upgrading removes them from Grafana; if you routed them to a contact point, that route no longer gets anything. The Receiver dashboard still shows all four conditions.
 

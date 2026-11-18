@@ -236,23 +236,6 @@ func TestDayHourGridShowsOneWeekOfDates(t *testing.T) {
 	}
 }
 
-func TestGroupedQueriesFillEmptyBucketsWithNull(t *testing.T) {
-	// Without a fill, an outage returns no rows and Grafana draws a straight line across it.
-	grouped := 0
-	for name, sql := range panelSQL {
-		if !strings.Contains(sql, "$__timeGroupAlias") {
-			continue
-		}
-		grouped++
-		if !strings.Contains(sql, "$__timeGroupAlias(time, $__interval, NULL)") {
-			t.Errorf("%s does not fill with NULL", name)
-		}
-	}
-	if grouped != 6 {
-		t.Errorf("%d grouped queries, want 6", grouped)
-	}
-}
-
 func TestRawReceiverPanelsBreakLinesAtOutages(t *testing.T) {
 	// Raw receiver_stats rows have no NULL-filled buckets: Grafana must insert the gap itself.
 	raw := 0

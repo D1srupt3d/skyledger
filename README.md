@@ -97,14 +97,15 @@ All settings live in `.env` (Compose). The Helm chart sets them from its values 
 | Variable | Default | |
 |---|---|---|
 | `TAR1090_URL` | required | see above |
-| `POSTGRES_PASSWORD`, `GRAFANA_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` | required | required for Compose; the Helm chart generates them or reads `existingSecret` |
+| `POSTGRES_PASSWORD`, `READONLY_DB_PASSWORD`, `GRAFANA_ADMIN_PASSWORD` | required | required for Compose; the Helm chart generates them or reads `existingSecret`. `READONLY_DB_PASSWORD` is the read-only login Grafana and the web UI use; its old name `GRAFANA_DB_PASSWORD` still works (set one, or both to the same value) |
 | `POSTGRES_HOST` | `timescaledb` | (set by the Helm chart from values) database host |
 | `POSTGRES_PORT` | `5432` | (set by the Helm chart from values) database port |
 | `POSTGRES_USER` | `skyledger` | (set by the Helm chart from values) database user |
 | `POSTGRES_DB` | `skyledger` | (set by the Helm chart from values) database name |
-| `DATABASE_URL` | optional | a full `postgresql://` URL; overrides the `POSTGRES_*` parts (with the Helm chart, set it through `extraEnv`) |
+| `DATABASE_URL` | optional | a full `postgresql://` URL; overrides the `POSTGRES_*` parts (with the Helm chart, set it through `extraEnv`). The web UI swaps its user and password for the read-only login's |
 | `TZ` | `UTC` | local days, busiest hour, when the nightly import runs |
-| `COMPOSE_PROFILES` | `grafana` | (Compose only) remove for your own Grafana; add `demo` for the demo feed |
+| `COMPOSE_PROFILES` | `grafana` | (Compose only) remove for your own Grafana; add `demo` for the demo feed, `web` for the web UI preview |
+| `WEB_PORT` | `1200` | (Compose only) port of the web UI preview, which has no login: keep it on your LAN or VPN |
 | `RETENTION_DAYS` | `90` | days of 10 s live positions (history is kept forever) |
 | `HISTORY_AT` | `01:15` | nightly import time, local |
 | `HISTORY_START` | `auto` | `YYYY-MM-DD` to skip older history |
@@ -140,7 +141,7 @@ Try it without a receiver: `--set demo.enabled=true` instead of `tar1090Url`.
 its passwords once and reads them back on upgrades, which only works when Helm
 talks to the cluster. Offline renders would generate new passwords every time.
 Give it a Secret you manage with `POSTGRES_PASSWORD` (always),
-`GRAFANA_DB_PASSWORD` (with the bundled database or Grafana) and
+`GRAFANA_DB_PASSWORD` (the read-only login, with the bundled database, Grafana or web) and
 `GRAFANA_ADMIN_PASSWORD` (with the bundled Grafana).
 
 **Your own Grafana:** `--set grafana.enabled=false`, then follow "Using your
@@ -163,7 +164,7 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 `skyledger_grafana` gets read access to skyledger's tables and nothing else.
 The chart's generated passwords can't match roles you created, so hand it
 yours in a Secret (add `GRAFANA_DB_PASSWORD` and `GRAFANA_ADMIN_PASSWORD` if you
-keep the bundled Grafana):
+keep the bundled Grafana, `GRAFANA_DB_PASSWORD` for web):
 
 ```bash
 kubectl create namespace skyledger

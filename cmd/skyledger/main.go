@@ -1,4 +1,4 @@
-// Command skyledger: `skyledger migrate|ingest|history|demo-feed`.
+// Command skyledger: `skyledger migrate|ingest|history|web|demo-feed`.
 package main
 
 import (
@@ -16,9 +16,10 @@ import (
 	"github.com/D1srupt3d/skyledger/internal/ingest"
 	"github.com/D1srupt3d/skyledger/internal/migrate"
 	"github.com/D1srupt3d/skyledger/internal/version"
+	"github.com/D1srupt3d/skyledger/internal/web"
 )
 
-const usage = `usage: skyledger [--version] {migrate,ingest,history,demo-feed} ...
+const usage = `usage: skyledger [--version] {migrate,ingest,history,web,demo-feed} ...
 
 Archive a readsb/tar1090 ADS-B receiver in TimescaleDB.
 
@@ -26,6 +27,7 @@ commands:
   migrate     create or upgrade the database schema, then exit
   ingest      poll the receiver's live feed and stats (runs forever)
   history     import heatmap history now and then nightly (runs forever)
+  web         serve the web UI on port 1200 (runs forever)
   demo-feed   serve a synthetic tar1090 for tests and the demo profile (--port, default 8080)
 `
 
@@ -60,18 +62,18 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer, lookup fu
 			return 1
 		}
 		return 0
-	case "migrate", "ingest", "history":
+	case "migrate", "ingest", "history", "web":
 	default:
 		_, _ = fmt.Fprintf(stderr, "skyledger: unknown command '%s'\n\n%s", args[0], usage)
 		return 2
 	}
-	settings, err := config.FromEnv(lookup)
+	settings, err := config.FromEnv(lookup, args[0] == "web")
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "skyledger: %v\n", err)
 		return 2
 	}
 	commands := map[string]func(context.Context, config.Settings) error{
-		"migrate": migrate.Run, "ingest": ingest.Run, "history": history.Run,
+		"migrate": migrate.Run, "ingest": ingest.Run, "history": history.Run, "web": web.Run,
 	}
 	if err := commands[args[0]](ctx, settings); err != nil {
 		_, _ = fmt.Fprintf(stderr, "skyledger: %v\n", err)

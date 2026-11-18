@@ -7,7 +7,8 @@ x-skyledger: &skyledger
   environment:
     TAR1090_URL: ${TAR1090_URL:?set TAR1090_URL in .env}
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-    GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?set GRAFANA_DB_PASSWORD in .env}
+    # GRAFANA_DB_PASSWORD is its old name and still works.
+    READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD:-${GRAFANA_DB_PASSWORD:?set READONLY_DB_PASSWORD in .env}}
     TZ: ${TZ:-UTC}
     RETENTION_DAYS: ${RETENTION_DAYS:-90}
     HISTORY_AT: ${HISTORY_AT:-01:15}
@@ -64,6 +65,24 @@ services:
     <<: *skyledger
     command: history
 
+  # Web UI preview on http://<host>:1200 (no login: LAN or VPN only).
+  # Add web to COMPOSE_PROFILES to run it.
+  web:
+    <<: *skyledger
+    command: web
+    # Its own environment (a merge would bring the owner's POSTGRES_PASSWORD): only
+    # the read-only login, so web can't write even if someone breaks in.
+    environment:
+      READONLY_DB_PASSWORD: ${READONLY_DB_PASSWORD:-${GRAFANA_DB_PASSWORD:?set READONLY_DB_PASSWORD in .env}}
+      TZ: ${TZ:-UTC}
+    profiles: [web]
+    ports:
+      - "${WEB_PORT:-1200}:1200"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:1200/readyz"]
+      interval: 30s
+      start_period: 30s
+
   grafana:
     image: grafana/grafana:13.3.0
     profiles: [grafana]
@@ -76,7 +95,7 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
-      GRAFANA_DB_PASSWORD: ${GRAFANA_DB_PASSWORD:?set GRAFANA_DB_PASSWORD in .env}
+      GRAFANA_DB_PASSWORD: ${READONLY_DB_PASSWORD:-${GRAFANA_DB_PASSWORD:?set READONLY_DB_PASSWORD in .env}}
     volumes:
       - ./charts/skyledger/grafana:/etc/grafana/provisioning:ro
       - grafana:/var/lib/grafana

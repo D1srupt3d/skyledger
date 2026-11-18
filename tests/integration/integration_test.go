@@ -9,17 +9,19 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/D1srupt3d/skyledger/internal/config"
 	"github.com/D1srupt3d/skyledger/internal/dashboards"
@@ -29,6 +31,8 @@ import (
 	"github.com/D1srupt3d/skyledger/internal/ingest"
 	"github.com/D1srupt3d/skyledger/internal/migrate"
 	"github.com/D1srupt3d/skyledger/internal/probe"
+	"github.com/D1srupt3d/skyledger/internal/queries"
+	"github.com/D1srupt3d/skyledger/internal/web"
 )
 
 var ctx = context.Background()
@@ -107,6 +111,48 @@ func isInsufficientPrivilege(err error) bool {
 	return errors.As(err, &pg) && pg.Code == "42501"
 }
 
+func meta(t *testing.T, c *pgx.Conn, key string) string {
+	t.Helper()
+	v, err := history.Meta(ctx, c, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
+
+// A fresh install whose readsb has a location but no heatmap history yet: the
+// location is still stored (RunOnce returns early when it finds no history).
+func TestLocationWithoutHistory(t *testing.T) {
+	base := dsnConfig(t)
+	redirectProbes(t)
+	admin := mustConnect(t, base, "", "", "")
+	exec(t, admin, "DROP DATABASE IF EXISTS location_test WITH (FORCE)")
+	exec(t, admin, "CREATE DATABASE location_test")
+	conn := mustConnect(t, base, "", "", "location_test")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/data/receiver.json" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"lat": 50.9, "lon": -0.11}`))
+	}))
+	t.Cleanup(srv.Close)
+	f, err := feed.New(srv.URL, 30*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := config.Settings{Tar1090URL: srv.URL + "/", TZ: time.UTC, RetentionDays: 30}
+	if err := migrate.Apply(ctx, conn, s); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := history.RunOnce(ctx, conn, f, s, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if lat, lon := meta(t, conn, "rx_lat"), meta(t, conn, "rx_lon"); lat != "50.9" || lon != "-0.11" {
+		t.Errorf("receiver location %q, %q", lat, lon)
+	}
+}
+
 func TestPipeline(t *testing.T) {
 	base := dsnConfig(t)
 	redirectProbes(t)
@@ -118,7 +164,7 @@ func TestPipeline(t *testing.T) {
 	url, f := demoFeed(t)
 	london, _ := time.LoadLocation("Europe/London")
 	s := config.Settings{Tar1090URL: url, TZ: london, Poll: 10 * time.Second, RetentionDays: 30,
-		GrafanaDBPassword: "grafana-test"}
+		ReadOnlyDBPassword: "grafana-test"}
 
 	step := func(name string, fn func(t *testing.T)) {
 		if !t.Run(name, fn) {
@@ -201,6 +247,10 @@ func TestPipeline(t *testing.T) {
 		}
 		if res != (history.Result{Imported: 48 * demo.Days}) {
 			t.Errorf("%+v", res)
+		}
+		// The web map centers on the receiver (demo.Receiver).
+		if lat, lon := meta(t, conn, "rx_lat"), meta(t, conn, "rx_lon"); lat != "45" || lon != "-35" {
+			t.Errorf("receiver location %q, %q", lat, lon)
 		}
 		if n := scalar[int](t, conn, "SELECT count(*) FROM history_files"); n != 48*demo.Days {
 			t.Errorf("%d files", n)
@@ -293,24 +343,47 @@ func TestPipeline(t *testing.T) {
 		}
 	})
 
+	step("web connects read only", func(t *testing.T) {
+		// DATABASE_URL names the owner; web must still log in as the read-only role.
+		owner := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=pipeline_test",
+			base.Host, base.Port, base.User, base.Password)
+		cfg, err := web.ReadOnlyConfig(config.Settings{DatabaseURL: owner, ReadOnlyDBPassword: "grafana-test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pool, err := pgxpool.NewWithConfig(ctx, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Close()
+		if err := pool.Ping(ctx); err != nil {
+			t.Fatal(err)
+		}
+		var user string
+		if err := pool.QueryRow(ctx, "SELECT current_user").Scan(&user); err != nil || user != "skyledger_grafana" {
+			t.Errorf("connected as %q: %v", user, err)
+		}
+		_, err = pool.Exec(ctx, "DELETE FROM positions")
+		var pg *pgconn.PgError
+		// 42501: insufficient privilege; 25006: read-only transaction. Either refuses the write.
+		if !errors.As(err, &pg) || (pg.Code != "42501" && pg.Code != "25006") {
+			t.Errorf("DELETE through web's pool: %v", err)
+		}
+	})
+
 	step("every dashboard query runs", func(t *testing.T) {
 		now := time.Now().UTC()
-		frm, to := "'"+now.AddDate(0, 0, -30).Format(time.RFC3339Nano)+"'", "'"+now.Format(time.RFC3339Nano)+"'"
-		filter := regexp.MustCompile(`\$__timeFilter\(([\w.]+)\)`)
-		group := regexp.MustCompile(`\$__timeGroupAlias\(([\w.]+), *\$__interval(?:, *NULL)?\)`)
-		queries := dashboards.AllQueries()
-		if len(queries) <= 30 {
-			t.Fatalf("%d queries", len(queries))
+		all := dashboards.AllQueries()
+		if len(all) <= 30 {
+			t.Fatalf("%d queries", len(all))
 		}
-		for name, sql := range queries {
-			e := filter.ReplaceAllString(sql, "${1} BETWEEN "+frm+" AND "+to)
-			e = group.ReplaceAllString(e, "time_bucket('5 minutes', ${1}) AS time")
-			e = strings.NewReplacer("$__timeFrom()", frm, "$__timeTo()", to).Replace(e)
-			if strings.Contains(e, "$__") {
-				t.Errorf("%s: macro left in %s", name, e)
+		for name, sql := range all {
+			e, args, err := queries.Expand(sql, now.AddDate(0, 0, -30), now, "5 minutes")
+			if err != nil {
+				t.Errorf("%s: %v", name, err)
 				continue
 			}
-			rows, err := grafana.Query(ctx, e)
+			rows, err := grafana.Query(ctx, e, args...)
 			if err == nil {
 				for rows.Next() {
 				}
